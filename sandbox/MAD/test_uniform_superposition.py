@@ -12,7 +12,7 @@ import seaborn as sns
 	superposition of n-quibits by apply Hadamar gates to
 	each qubit independently. Then, verify that the 
 	superposition is uniform by sampling the distribution of
-	measured states. """
+	measured states m-times. """
 
 ## parameters ## 
 verbose = False
