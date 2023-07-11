@@ -24,14 +24,14 @@ n = int(sys.argv[1])
 # number of times to sample quantum state
 m = int(sys.argv[2])
 
-if verbose:
-	print(f"\nGenerating {n}-qubit state.")
+print(f"\nGenerating {n}-qubit state.")
 
 # initialize state of qubits
 state = QuantumState(n)
 state.set_zero_state()
 
 # build quantum circuit
+print(f"Applying Hadamar Gate to each qubit.")
 circuit = QuantumCircuit(n)
 for i in range(n):
 	# add Hadamar gate to each wire
@@ -48,6 +48,7 @@ circuit.update_quantum_state(state)
 
 # measure the distribution by sampling m-times
 # is it even?
+print(f"Sampling quantum state {m}-times.")
 data = state.sampling(m)
 hist = [format(value, "b").zfill(n) for value in data]
 # hist = [0] * ((n ** 2) - 1) # empty array containing all possible states
