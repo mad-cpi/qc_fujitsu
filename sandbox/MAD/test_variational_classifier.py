@@ -13,6 +13,27 @@ import seaborn as sns
 
 
 ## FUNCTIONS ## 
+""" initialize bit vector into n-qubit state """
+def stateprep(x):
+
+	# create state with as many qubits as there bits
+	state = QuantumState(len(x))
+
+	# intialize all qubits in "0" state
+	state.set_zero_state()
+
+	# loop through bit vector
+	for i in range(len(x)):
+		state.set_classical_value(i, x[i])
+		# if the bit is one
+		if x[i] == 1:
+			print(i)
+			# flip the corresponding qubit
+			# state.set_classical_value(i, 1)
+
+	return state
+
+
 """ creates an n-qubit circuit, where each qubit
 	is rotated by an RX, RY, and RZ matrix, and 
 	all neighboring qubits are connected by CNOT
@@ -61,7 +82,9 @@ def layer (w):
 	"""
 def variational_circuit(W, x):
 	
-	# state = stateprep(x)
+	state = stateprep(x)
+	print(state.get_vector())
+	exit()
 
 	l = len(W)
 	for i in range(l):
@@ -73,6 +96,7 @@ def variational_circuit(W, x):
 """ defnes variational classifier, returns
 	expectation value."""
 def variational_classifier(W, b, x):
+	## TODO :: CHECKS!! 
 	return variational_circuit(W, x) + b
 
 ## ARGUMENTS ## 
@@ -87,6 +111,6 @@ l = 2
 # create array of random weights
 W = np.random.normal(0, 0.01, size=(l, n, 3))
 
-print(variational_classifier(W, 0., [0]))
+print(variational_classifier(W, 0., [0, 1, 0, 1]))
 
 # examine circuit
