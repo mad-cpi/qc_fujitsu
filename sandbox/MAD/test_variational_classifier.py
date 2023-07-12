@@ -1,7 +1,9 @@
 import sys, os
 import pandas as pd
 import numpy as np
-import qulacs 
+import qulacs
+from rdkit import Chem
+from rdkit.Chem import AllChem, rdFingerprintGenerator
 from qulacs import QuantumState
 from qulacs import QuantumCircuit
 from qulacs import PauliOperator
@@ -18,7 +20,53 @@ verbose = True
 
 ## FUNCTIONS ## 
 """ load data for variational classifier training """
-def load_data ():
+def load_data (dataset):
+	
+	if dataset == "parity_function":
+		X, Y = load_parity_data()
+	elif dataset == "activity_data":
+		X, Y = load_activity_data()
+	else:
+		print(f"No instructions for loading DATASET ({dataset}).")
+		return [], []
+
+	if verbose: 
+		print(f"\nLoading DATA ({dataset}) .. \n")
+		for i in range(len(Y)):
+			print("X = {}, Y = {:.2f}".format(X[i], Y[i]))
+
+	return X, Y
+
+""" instructions for loading data set that contains
+	chemical structure and activity data """
+def load_activity_data():
+	# load data from file
+	file_path = "./data/test_activity_set.csv"
+	data = pd.read_csv(file_path)
+
+	# load X array (bit vector)
+	smi = data['SMILES'].tolist()
+	# encode fingerprint bit string with as many bits as qubits
+	fp = [AllChem.GetMorganFingerprintAsBitVect(Chem.MolFromSmiles(x), \
+		radius = 3, nBits = n, useFeatures = True).ToBitString() for x in smi]
+
+	# translate bit string to bit vector
+	X = np.zeros((len(fp), n), dtype=int)
+	for i in range(len(fp)):
+		# print(fp[i])
+		for j in range(n):
+			if fp[i][j] == "1":
+				# replace 0 with 1
+				X[i,j] = 1
+
+	# load Y array (activity)
+	Y = np.array(data['single-class-label'])
+	
+	return X, Y
+
+
+""" instructions for loading parity data set """
+def load_parity_data ():
 	file_path = "./data/parity_function.dat"
 	data = np.loadtxt(file_path)
 	# load X and Y arrays
@@ -26,11 +74,6 @@ def load_data ():
 	Y = np.array(data[:,  -1])
 	# scale Y array to match range of Pali-Z expectation values
 	Y = Y * 2 - np.ones(len(Y)) # shift label form [0, 1] to [-1, 1]
-
-	if verbose: 
-		print(f"\nLoading DATA from PATH ({file_path}) .. \n")
-		for i in range(len(Y)):
-			print("X = {}, Y = {:.2f}".format(X[i], Y[i]))
 
 	return X, Y
 
@@ -173,13 +216,13 @@ def variational_classifier(W, b, x):
 	measurements and classification labels. """
 def error (labels, predictions):
 	# tolerance used to measure if a prediction is correct
-	tol = 1e-5
+	tol = 5e-2
 	# initialize loss, accuracy measurements
 	loss = 0.
 	accuracy = 0
 	# compare all labels and predictions
 	for l, p in zip(labels, predictions):
-		print("CLASS : {:0.5f}, PRED : {:0.5f}".format(l, p))
+		# print("CLASS : {:0.5f}, PRED : {:0.5f}".format(l, p))
 		loss = loss + (l - p) ** 2
 		if abs(l - p) < tol:
 			accuracy = accuracy + 1
@@ -214,20 +257,20 @@ def cost_function (W):
 
 ## ARGUMENTS ## 
 # number of qubits in quantum circuit
-n = 4
+n = 16
 # number of layers in quantum circuit architechture
 l = 2
 
 
 ## SCRIPT ##
 
-X, Y = load_data()
+X, Y = load_data(dataset = "activity_data")
 
 # create array of random weights
 n_it = 0
-W_init = np.random.normal(0, 0.5, size=(l * n * 3 + 1)) 
+W_init = np.random.normal(0, 0.1, size=(l * n * 3 + 1)) 
 # print(cost_function(W_init))
-opt = minimize (cost_function, W_init, method = 'Nelder-Mead')
+opt = minimize (cost_function, W_init, method = 'Powell')
 
 # optimal weight
 W_opt = opt.x
