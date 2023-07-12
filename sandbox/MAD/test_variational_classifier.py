@@ -4,7 +4,9 @@ import numpy as np
 import qulacs 
 from qulacs import QuantumState
 from qulacs import QuantumCircuit
-from qulacs.gate import H, RX, RY, RZ, CNOT
+from qulacs import PauliOperator
+from qulacs import Observable
+from qulacs.gate import H, X, RX, RY, RZ, CNOT
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -13,24 +15,55 @@ import seaborn as sns
 
 
 ## FUNCTIONS ## 
+""" measure distribution of quantum states """
+def sample_state_distribution (s, m, save_path = None):
+	
+	# number of qunits in state
+	n = s.get_qubit_count()
+
+	# sample quantum state m-times
+	data = s.sampling(m)
+	hist = [format(value, "b").zfill(n) for value in data]
+
+
+	state_dist = pd.DataFrame(dict(State=hist))
+	g = sns.displot(data=state_dist, x="State", discrete=True)
+	plt.suptitle(f"({n} Qubits Sampled {m} Times)")
+	plt.title("Distribution of Quantum Measured Quantum States")
+	plt.xlabel("Unique Quantum State")
+	plt.ylabel("Number of Times Measured")
+	if save_path is None:
+		# show the plot
+		plt.show()
+	else:
+		# save the state to the path
+		plt.savefig(save_path, dpi = 400, bboxinches = 'tight')
+
+
 """ initialize bit vector into n-qubit state """
 def stateprep(x):
 
-	# create state with as many qubits as there bits
-	state = QuantumState(len(x))
+	# number of bits in bit vector, number of qubits
+	n = len(x)
 
+	# create state with as many qubits as there bits
+	state = QuantumState(n)
 	# intialize all qubits in "0" state
 	state.set_zero_state()
 
+	# build quantum circuit that changes quantum zero state
+	# to quantum state representing bit vector
+	c = QuantumCircuit(n)
 	# loop through bit vector
-	for i in range(len(x)):
-		state.set_classical_value(i, x[i])
+	for i in range(n):
 		# if the bit is one
 		if x[i] == 1:
-			print(i)
-			# flip the corresponding qubit
-			# state.set_classical_value(i, 1)
+			# add a not gate to the qubit corresponding
+			# to that qubit
+			c.add_X_gate(i)
 
+	# apply circuit to quantum state, return
+	c.update_quantum_state(state)
 	return state
 
 
@@ -81,16 +114,30 @@ def layer (w):
 	of the qubits after applying the circuit.
 	"""
 def variational_circuit(W, x):
-	
-	state = stateprep(x)
-	print(state.get_vector())
-	exit()
 
+	# number of qubits
+	n = len(x)
+	
+	# initialize bit vector into quantum state
+	state = stateprep(x)
+
+	# for each circuit
 	l = len(W)
 	for i in range(l):
-		circuit = layer(W[i])
+		# generate quantum circuit with weights
+		c = layer(W[i])
+		# update quantum state with 
+		c.update_quantum_state(state)
+		# measure state distributions
+		# sample_state_distribution(state, 1000)
 
-	return 0
+	# can probably make list a global variable 
+	# (do not need to define each iteration of variational circuit)
+	obs = Observable(n)
+	# palui z operator measured on 0th qubit, scale by constant 1
+	obs.add_operator(1., 'Z 0')
+
+	return obs.get_expectation_value(state)
 
 
 """ defnes variational classifier, returns
@@ -103,13 +150,13 @@ def variational_classifier(W, b, x):
 # number of qubits in quantum circuit
 n = 4
 # number of layers in quantum circuit architechture
-l = 2
+l = 3
 
 
 ## SCRIPT ##
 
 # create array of random weights
-W = np.random.normal(0, 0.01, size=(l, n, 3))
+W = np.random.normal(0, 0.1, size=(l, n, 3))
 
 print(variational_classifier(W, 0., [0, 1, 0, 1]))
 
