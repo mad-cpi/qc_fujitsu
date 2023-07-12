@@ -7,14 +7,33 @@ from qulacs import QuantumCircuit
 from qulacs import PauliOperator
 from qulacs import Observable
 from qulacs.gate import H, X, RX, RY, RZ, CNOT
+from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 ## PARAMETERS ## 
-# none
+# execute script verbosely
+verbose = True
 
 
 ## FUNCTIONS ## 
+""" load data for variational classifier training """
+def load_data ():
+	file_path = "./data/parity_function.dat"
+	data = np.loadtxt(file_path)
+	# load X and Y arrays
+	X = np.array(data[:, :-1])
+	Y = np.array(data[:,  -1])
+	# scale Y array to match range of Pali-Z expectation values
+	Y = Y * 2 - np.ones(len(Y)) # shift label form [0, 1] to [-1, 1]
+
+	if verbose: 
+		print(f"\nLoading DATA from PATH ({file_path}) .. \n")
+		for i in range(len(Y)):
+			print("X = {}, Y = {:.2f}".format(X[i], Y[i]))
+
+	return X, Y
+
 """ measure distribution of quantum states """
 def sample_state_distribution (s, m, save_path = None):
 	
@@ -59,7 +78,8 @@ def stateprep(x):
 		# if the bit is one
 		if x[i] == 1:
 			# add a not gate to the qubit corresponding
-			# to that qubit
+			# to that qubit (not gate flips qubit 
+			# deterministically from 0 to 1)
 			c.add_X_gate(i)
 
 	# apply circuit to quantum state, return
@@ -95,9 +115,11 @@ def layer (w):
 			circuit.add_gate(gate)
 
 	# for each wire
-	for i in range(n - 1):
+	for i in range(n):
 		# target bit
 		j = i + 1 
+		if j >= n:
+			j = 0
 		# apply control bit to target bit
 		gate = CNOT (i, j)
 		# add to circuit
@@ -157,6 +179,7 @@ def error (labels, predictions):
 	accuracy = 0
 	# compare all labels and predictions
 	for l, p in zip(labels, predictions):
+		print("CLASS : {:0.5f}, PRED : {:0.5f}".format(l, p))
 		loss = loss + (l - p) ** 2
 		if abs(l - p) < tol:
 			accuracy = accuracy + 1
@@ -165,16 +188,50 @@ def error (labels, predictions):
 	accuracy = accuracy / len(labels)
 	return loss, accuracy
 
+
+""" calculates the error of weights used for variational
+	classifier circuit against training set. """
+def cost_function (W):
+
+	# remap weights
+	b = W[-1]
+	W = W[:-1].reshape(l, n ,3)
+
+	# make predictions for all X values
+	# Y_pred = [np.sign(variational_classifier(W, b, x)) for x in X]
+	Y_pred = [variational_classifier(W, b, x) for x in X]
+
+	# measure and return loss of predictions against expected values
+	global n_it
+	n_it = n_it + 1
+	cost, acc = error(Y, Y_pred)
+	if verbose:
+		# inform user of the cost and error of n iterations
+		print("Iteration: {:5d} | Cost: {:0.5f} | Accuracy : {:0.5f}"\
+			.format(n_it, cost, acc))
+
+	return cost
+
 ## ARGUMENTS ## 
 # number of qubits in quantum circuit
 n = 4
 # number of layers in quantum circuit architechture
-l = 3
+l = 2
 
 
 ## SCRIPT ##
 
-# create array of random weights
-W = np.random.normal(0, 0.1, size=(l, n, 3))
+X, Y = load_data()
 
-print(variational_classifier(W, 0., [0, 1, 0, 1])) 
+# create array of random weights
+n_it = 0
+W_init = np.random.normal(0, 0.5, size=(l * n * 3 + 1)) 
+# print(cost_function(W_init))
+opt = minimize (cost_function, W_init, method = 'Nelder-Mead')
+
+# optimal weight
+W_opt = opt.x
+print("\nFinal value of error function after optimization: {:0.3f}.".format(opt.fun))
+
+
+
