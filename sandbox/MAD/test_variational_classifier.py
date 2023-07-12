@@ -146,6 +146,25 @@ def variational_classifier(W, b, x):
 	## TODO :: CHECKS!! 
 	return variational_circuit(W, x) + b
 
+
+""" measure squared error  and accuray between 
+	measurements and classification labels. """
+def error (labels, predictions):
+	# tolerance used to measure if a prediction is correct
+	tol = 1e-5
+	# initialize loss, accuracy measurements
+	loss = 0.
+	accuracy = 0
+	# compare all labels and predictions
+	for l, p in zip(labels, predictions):
+		loss = loss + (l - p) ** 2
+		if abs(l - p) < tol:
+			accuracy = accuracy + 1
+	# normalize loss, accuracy by the data size
+	loss = loss / len(labels)
+	accuracy = accuracy / len(labels)
+	return loss, accuracy
+
 ## ARGUMENTS ## 
 # number of qubits in quantum circuit
 n = 4
@@ -158,6 +177,4 @@ l = 3
 # create array of random weights
 W = np.random.normal(0, 0.1, size=(l, n, 3))
 
-print(variational_classifier(W, 0., [0, 1, 0, 1]))
-
-# examine circuit
+print(variational_classifier(W, 0., [0, 1, 0, 1])) 
