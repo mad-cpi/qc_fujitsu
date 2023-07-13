@@ -241,8 +241,18 @@ def cost_function (W):
 	W = W[:-1].reshape(l, n ,3)
 
 	# make predictions for all X values
+	thershold = 0.75 # used to speed learning process
+	# if values are above the treshhold
+	# assume the predctions are correct
+	Y_pred = []
+	for i in range(len(X)):
+		x = X[i]
+		y = variational_classifier(W, b, x)
+		if abs(y) > thershold:
+			y = np.sign(y)
+		Y_pred.append(y)
 	# Y_pred = [np.sign(variational_classifier(W, b, x)) for x in X]
-	Y_pred = [variational_classifier(W, b, x) for x in X]
+	# Y_pred = [variational_classifier(W, b, x) for x in X]
 
 	# measure and return loss of predictions against expected values
 	global n_it
@@ -275,6 +285,8 @@ opt = minimize (cost_function, W_init, method = 'Powell')
 # optimal weight
 W_opt = opt.x
 print("\nFinal value of error function after optimization: {:0.3f}.".format(opt.fun))
+
+# TODO :: SAVE OPTIMAL WEIGHTS!
 
 
 
