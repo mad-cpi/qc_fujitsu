@@ -1,4 +1,5 @@
 import sys, os
+import math
 import pandas as pd
 import numpy as np
 import qulacs
@@ -159,14 +160,18 @@ def layer (w):
 
 	# for each wire
 	for i in range(n):
-		# target bit
-		j = i + 1 
-		if j >= n:
-			j = 0
-		# apply control bit to target bit
-		gate = CNOT (i, j)
-		# add to circuit
-		circuit.add_gate(gate)
+		# in the schulgin data set, the first 5 features
+		# in the 16 bit fingerprint are all the same for the 
+		# entire dataset, so do not apply control bits to those features
+		if i >= 5 or i == (n-1):
+			# target bit
+			j = i + 1 
+			if j >= n:
+				j = 0
+			# apply control bit to target bit
+			gate = CNOT (i, j)
+			# add to circuit
+			circuit.add_gate(gate)
 
 	return circuit
 
@@ -193,7 +198,7 @@ def variational_circuit(W, x):
 		c = layer(W[i])
 		# update quantum state with 
 		c.update_quantum_state(state)
-		# measure state distributions
+		# debug :: measure state distributions
 		# sample_state_distribution(state, 1000)
 
 	# can probably make list a global variable 
@@ -236,17 +241,30 @@ def error (labels, predictions):
 	classifier circuit against training set. """
 def cost_function (W):
 
+	global n_it
+	global thershold
+
+	# increament threshold every x iterations
+	if n_it % n_inc == 0:
+		print(f"Threshold increased from {thershold} to {(thershold + thershold_it)}.")
+		thershold += thershold_it
+
 	# remap weights
-	b = W[-1]
-	W = W[:-1].reshape(l, n ,3)
+	b = W[-1] # last value corresponds to bias
+	W = W[:-1].reshape(l, n ,3) 
+	# everything else are for gate operations
+
+	# make random testing batch
+	batch_index = np.random.randint(0, high = len(X), size = n_batch)
+	X_batch = X[batch_index]
+	Y_batch = Y[batch_index]
 
 	# make predictions for all X values
-	thershold = 0.75 # used to speed learning process
 	# if values are above the treshhold
 	# assume the predctions are correct
 	Y_pred = []
-	for i in range(len(X)):
-		x = X[i]
+	for i in range(len(X_batch)):
+		x = X_batch[i]
 		y = variational_classifier(W, b, x)
 		if abs(y) > thershold:
 			y = np.sign(y)
@@ -255,9 +273,8 @@ def cost_function (W):
 	# Y_pred = [variational_classifier(W, b, x) for x in X]
 
 	# measure and return loss of predictions against expected values
-	global n_it
 	n_it = n_it + 1
-	cost, acc = error(Y, Y_pred)
+	cost, acc = error(Y_batch, Y_pred)
 	if verbose:
 		# inform user of the cost and error of n iterations
 		print("Iteration: {:5d} | Cost: {:0.5f} | Accuracy : {:0.5f}"\
@@ -271,16 +288,36 @@ n = 16
 # number of layers in quantum circuit architechture
 l = 2
 
+## HYPERPARAMETERS ## 
+n_it = 0 # number of times that the cost function is called
+thershold = 0. # value used to coarse grain binary results
+n_inc = 25 # number of iteractions required for threshold incrementation
+thershold_it = 0.05 # amount to increase threshold by every n_inc iterations
+batch_size = 0.8 # precentage of data used to create predictions
+
 
 ## SCRIPT ##
 
 X, Y = load_data(dataset = "activity_data")
+n_batch = math.ceil(len(X) * batch_size)
+# number of data points in each batch
 
 # create array of random weights
-n_it = 0
-W_init = np.random.normal(0, 0.1, size=(l * n * 3 + 1)) 
+W_init = np.random.normal(0., 0.1, size=(l * n * 3 + 1)) 
+bnds = [] # bounds of weights
+# initialized as N x 2 array
+for i in range(len(W_init)):
+	if i < (len(W_init) - 1):
+		lwr_bnd = - 2. * math.pi # lower bound of each universal unitary opration
+		upp_bnd = 2. * math.pi # upper bound of each universal unitary operation
+		bnds.append((lwr_bnd, upp_bnd))
+	else:
+		# the final value in the set is the bias applied to each circuit
+		# no bounds on linear shift
+		bnds.append((None, None))
+
 # print(cost_function(W_init))
-opt = minimize (cost_function, W_init, method = 'Powell')
+opt = minimize (cost_function, W_init, method = 'Powell', bounds = bnds)
 
 # optimal weight
 W_opt = opt.x
