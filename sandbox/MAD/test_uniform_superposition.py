@@ -1,12 +1,10 @@
-import sys, os
-import pandas as pd
-import numpy as np
-import qulacs 
-from qulacs import QuantumState
-from qulacs import QuantumCircuit
-from qulacs.gate import H
+import sys
+
 import matplotlib.pyplot as plt
+import pandas as pd
 import seaborn as sns
+from qulacs import QuantumCircuit, QuantumState
+from qulacs.gate import H
 
 """ Goal of this program is to generate a uniform
 	superposition of n-quibits by apply Hadamar gates to
