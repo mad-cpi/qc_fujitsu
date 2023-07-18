@@ -40,20 +40,24 @@ def sample_state_distribution (s, m, save_path = None):
 		plt.savefig(save_path, dpi = 400, bboxinches = 'tight')
 
 
-""" initialize bit vector into n-qubit state """
-def stateprep(x):
+""" initialize bit vector x into n-qubit state with
+	m measurement wires. """
+def qubit_encoding(x, n, m):
 
-	# number of bits in bit vector, number of qubits
-	n = len(x)
+	# x :: bit vector with n elements, molecular fingerprint
+	# n :: number of elements in x 
+	# m :: number of measurement wires
 
 	# create state with as many qubits as there bits
-	state = QuantumState(n)
+	# plus the number of measurement wires
+	state = QuantumState(n + m)
 	# intialize all qubits in "0" state
 	state.set_zero_state()
 
 	# build quantum circuit that changes quantum zero state
 	# to quantum state representing bit vector
-	c = QuantumCircuit(n)
+	# (all measurement bits remain |0> state)
+	c = QuantumCircuit(n + m)
 	# loop through bit vector
 	for i in range(n):
 		# if the bit is one
@@ -62,9 +66,54 @@ def stateprep(x):
 			# to that qubit
 			c.add_X_gate(i)
 
-	# apply circuit to quantum state, return
+	# apply circuit to quantum state, return the state
 	c.update_quantum_state(state)
 	return state
+
+""" initialize qubit state by encoding the amplitudes
+	of the bit vector """
+def amplitude_encoding():
+	pass
+
+
+""" circuit that models a TNN classification network
+	DOI: https://doi.org/10.1038/s41534-018-0116-9"""
+def TNNclassifier (w, x):
+
+	# number of measurement wires
+	m = 1
+	# number of qubits
+	n = len(x)
+	# initialize bit vector into quantum quivalent
+	state = qubit_encoding(n, m)
+
+	# for each circuit layer
+	l = len(W)
+	for i in range(l):
+		# generate quantum circuit with weights
+		c = TNNcircuit(W[i])
+		# apply circuit with weights to qubits
+		c.update_quantum_state(state)
+
+	# can probably make list a global variable 
+	# (do not need to define each iteration of variational circuit)
+	obs = Observable(n)
+	# palui z operator measured on mth qubit, scale by constant 1
+	obs.add_operator(1., 'Z 0')
+
+	return obs.get_expectation_value(state)
+
+""" Builds TNN quantum circuit TNN classification
+	protocol. Applies unitary weights to unitary
+	qubit operations, returns circuit. """
+def TNNcircuit (w):
+
+	# initialize circuit
+	# number of qubits plus one (M)
+	n = len(w) + 1
+	circuit = QuantumCircuit(n)
+
+	pass
 
 
 """ creates an n-qubit circuit, where each qubit
@@ -119,7 +168,7 @@ def variational_circuit(W, x):
 	n = len(x)
 	
 	# initialize bit vector into quantum state
-	state = stateprep(x)
+	state = stateprep(x, n, 0)
 
 	# for each circuit
 	l = len(W)
