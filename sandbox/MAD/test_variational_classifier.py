@@ -31,8 +31,10 @@ def load_data (dataset):
 	
 	if dataset == "parity_function":
 		X, Y = load_parity_data()
-	elif dataset == "activity_data":
-		X, Y = load_activity_data()
+	elif dataset == "test_activity_data":
+		X, Y = load_test_activity_data()
+	elif dataset == "AChE_activity_data":
+		X, Y = load_AChE_activity_data()
 	else:
 		print(f"No instructions for loading DATASET ({dataset}).")
 		return [], []
@@ -46,7 +48,34 @@ def load_data (dataset):
 
 """ instructions for loading data set that contains
 	chemical structure and activity data """
-def load_activity_data():
+def load_AChE_activity_data():
+	# load data from file
+	file_path = "./data/Acetylcholinesterase_human_IC50_ChEMBLBindingDB_spliton6_binary_1micromolar.csv"
+	data = pd.read_csv(file_path)
+
+	# load X array (bit vector)
+	smi = data['SMILES'].tolist()
+	# encode fingerprint bit string with as many bits as qubits
+	fp = [AllChem.GetMorganFingerprintAsBitVect(Chem.MolFromSmiles(x), \
+		radius = 3, nBits = n, useFeatures = True).ToBitString() for x in smi]
+
+	# translate bit string to bit vector
+	X = np.zeros((len(fp), n), dtype=int)
+	for i in range(len(fp)):
+		# print(fp[i])
+		for j in range(n):
+			if fp[i][j] == "1":
+				# replace 0 with 1
+				X[i,j] = 1
+
+	# load Y array (activity)
+	Y = np.array(data['single-class-label'])
+	
+	return X, Y
+
+""" instructions for loading data set that contains
+	chemical structure and activity data """
+def load_test_activity_data():
 	# load data from file
 	file_path = "./data/test_activity_set.csv"
 	data = pd.read_csv(file_path)
@@ -225,14 +254,12 @@ def TNNcircuit (W, x):
 		# apply circuit with weights to qubits
 		c.update_quantum_state(state)
 
-	exit()
-
 	# can probably make list a global variable 
 	# (do not need to define each iteration of variational circuit)
 	obs = Observable(n)
 	# palui z operator measured on mth qubit, scale by constant 1
-	# measurement = "Z {i}".format(n + m)
-	obs.add_operator(1., 'Z 0')
+	measurement = "Z {:d}".format(n - 1)
+	obs.add_operator(1., measurement)
 
 	return obs.get_expectation_value(state)
 
@@ -242,13 +269,33 @@ def TNNlayer (W, i, n):
 
 	w = get_TNN_layer_weights(W, i, n)
 	q = get_TNN_wires(i, n)
+	# NOTE :: len(q) and len(W) should be equal
 
-	print(f"{i} :: {q}")
-	exit()
-
-	# initialize circuit
-	# number of qubits plus one (M)
+	# initialize circuit for n qubits
 	circuit = QuantumCircuit(n)
+
+	# apply unitary operations for each wire in q
+	for j in range(len(q)):
+		# apply each R gate
+		for k in range(3):
+			if k == 0:
+				# if j == 0, apply RX gate to wire n
+				gate = RX (q[j], w[j][k])
+			elif k == 1:
+				# if j == 1, aply RY gate to wire n
+				gate = RY (q[j], w[j][k])
+			elif k == 2:
+				# if j == 2, apply RZ gate to write n
+				gate = RZ (q[j], w[j][k])
+
+			# add gate to circuit
+			circuit.add_gate(gate)
+
+	# apply CNOT gates for each wire in q with its neighbor (in the list)
+	for j in range(0, int(len(q) / 2), 2):
+		gate = CNOT (q[j], q[j+1])
+		# add gate to circuit
+		circuit.add_gate(gate)
 
 	return circuit
 
@@ -293,9 +340,8 @@ def get_TNN_wires(i, n):
 		# if not the first wire
 		for l in range(i - 1):
 			# remove every other qubit
-			for j in range(len(q)):
-				if j % 2 == 0:
-					q.remove(j)
+			for j in range(int(len(q) / 2)):
+				q.pop(j)	
 
 
 	return q
@@ -325,7 +371,7 @@ def variational_circuit(W, x):
 	n = len(x)
 	
 	# initialize bit vector into quantum state
-	state = stateprep(x, n, 0)
+	state = qubit_encoding(x, n, 0)
 
 	# for each circuit
 	l = len(W)
@@ -429,7 +475,7 @@ def cost_function (W):
 
 	# remap weights, biases
 	b = W[-1] # last value corresponds to bias
-	W = W[:-1] # remove bias from weights
+	W = W[:-1].reshape(l, n, 3) # remove bias from weights
 	# all others are for gate operations
 
 	# make random testing batch
@@ -443,7 +489,8 @@ def cost_function (W):
 	Y_pred = []
 	for i in range(len(X_batch)):
 		x = X_batch[i]
-		y = TNNclassifier(W, b, x)
+		# y = TNNclassifier(W, b, x)
+		y = variational_classifier (W, b, x)
 		if abs(y) > thershold:
 			y = np.sign(y)
 		Y_pred.append(y)
@@ -474,13 +521,14 @@ batch_size = 0.8 # precentage of data used to create predictions
 
 ## SCRIPT ##
 
-X, Y = load_data(dataset = "activity_data")
+X, Y = load_data(dataset = "AChE_activity_data")
 n_batch = math.ceil(len(X) * batch_size)
 # number of data points in each batch
 
 # create array of random weights
-W_init, l = TNN_init_weights(n)
-# W_init = np.random.normal(0., 0.1, size=(l * n * 3 + 1)) 
+# W_init, l = TNN_init_weights(n)
+l = 2
+W_init = np.random.normal(0., 0.1, size=(l * n * 3 + 1)) 
 bnds = [] # bounds of weights
 # initialized as N x 2 array
 for i in range(len(W_init)):
