@@ -152,9 +152,16 @@ def amplitude_encoding():
 """ TNN CIRCUIT ARCHITECHTURE, PARAMETERS """
 
 
+""" circuit that models a TNN classification network.
+
+	DOI: https://doi.org/10.1038/s41534-018-0116-9"""
+def TNNclassifier (W, b, x):
+	return TNNcircuit(W, x) + b
+
+
 """ method used to initialize unitary weights
 	for TNN clasification ciruits """
-def TNN_unitary_weights(n):
+def TNN_init_weights(n):
 
 	# check the number of qubits that should be 
 	# input used into the quantum circuit
@@ -197,34 +204,6 @@ def TNN_unitary_weights(n):
 	return W, layer
 
 
-""" reshapes unitary parameters passed to optimzation
-	function to np array shaped according to the circuit
-	layers. """
-def get_TNN_layer_weights(W, i, n):
-
-	# W :: array containing all weights for all unitary operations
-	# i :: circuit layer to get unitary operations for
-	# n :: number of qubits
-
-	# reshape to 3 x N array
-	w = np.zeros((1))
-	lw = 0 # lower bound of weights in layer
-	for j in range(i):
-		n_weights = int(n / (2 ** (j)))
-		up = lw + 3 * n_weights # upper bound of weights in layer
-		w = W[lw:up].reshape(n_weights, 3)
-		lw = up # old upper bound is new lower bound
-
-	return w
-
-
-""" circuit that models a TNN classification network.
-
-	DOI: https://doi.org/10.1038/s41534-018-0116-9"""
-def TNNclassifier (W, b, x):
-	return TNNcircuit(W, x) + b
-
-
 """ Builds TNN quantum circuit TNN classification
 	protocol. Applies unitary weights to unitary
 	qubit operations, returns expection value of
@@ -262,6 +241,10 @@ def TNNcircuit (W, x):
 def TNNlayer (W, i, n):
 
 	w = get_TNN_layer_weights(W, i, n)
+	q = get_TNN_wires(i, n)
+
+	print(f"{i} :: {q}")
+	exit()
 
 	# initialize circuit
 	# number of qubits plus one (M)
@@ -270,8 +253,97 @@ def TNNlayer (W, i, n):
 	return circuit
 
 
+""" reshapes unitary parameters passed to optimzation
+	function to np array shaped according to the circuit
+	layers. """
+def get_TNN_layer_weights(W, i, n):
+
+	# W :: array containing all weights for all unitary operations
+	# i :: circuit layer to get unitary operations for
+	# n :: number of qubits
+
+	# reshape to 3 x N array
+	w = np.zeros((1))
+	lw = 0 # lower bound of weights in layer
+	for j in range(i):
+		n_weights = int(n / (2 ** (j)))
+		up = lw + 3 * n_weights # upper bound of weights in layer
+		w = W[lw:up].reshape(n_weights, 3)
+		lw = up # old upper bound is new lower bound
+
+	return w
+
+
+""" method that gets the interaction wires that 
+	recieve unitary operations and are connected by
+	CNOT gates. The wires that are operated on for
+	any TNN circuit depends on the number of qubits in
+	the circuit, and the current layer of the TNN
+	circuit """
+def get_TNN_wires(i, n):
+
+	# i :: current layer that is operating
+	# n :: total number of qubits in circuit
+
+	# initialize the list of wires that interact with one another
+	# start with list of all cubits
+	q = [x for x in range(n)]
+
+	if i > 0:
+		# if not the first wire
+		for l in range(i - 1):
+			# remove every other qubit
+			for j in range(len(q)):
+				if j % 2 == 0:
+					q.remove(j)
+
+
+	return q
+
+
 
 """ VARIATIONAL CIRCUIT ARCHITECTURE, PARAMETERS """
+
+
+""" defnes variational classifier, returns
+	expectation value."""
+def variational_classifier(W, b, x):
+	return variational_circuit(W, x) + b
+
+
+""" Creates prediction between x and y by:
+
+	1. intializes n-qubit state that represents the 
+	computational basis of the bit-vector x
+	2. apply variational circuit layer n-times
+	3. calculate the Pauli-Z expectation value 
+	of the qubits after applying the circuit.
+	"""
+def variational_circuit(W, x):
+
+	# number of qubits
+	n = len(x)
+	
+	# initialize bit vector into quantum state
+	state = stateprep(x, n, 0)
+
+	# for each circuit
+	l = len(W)
+	for i in range(l):
+		# generate quantum circuit with weights
+		c = layer(W[i])
+		# update quantum state with 
+		c.update_quantum_state(state)
+		# debug :: measure state distributions
+		# sample_state_distribution(state, 1000)
+
+	# can probably make list a global variable 
+	# (do not need to define each iteration of variational circuit)
+	obs = Observable(n)
+	# palui z operator measured on 0th qubit, scale by constant 1
+	obs.add_operator(1., 'Z 0')
+
+	return obs.get_expectation_value(state)
 
 
 """ creates an n-qubit circuit, where each qubit
@@ -317,47 +389,6 @@ def layer (w):
 			circuit.add_gate(gate)
 
 	return circuit
-
-
-""" Creates prediction between x and y by:
-
-	1. intializes n-qubit state that represents the 
-	computational basis of the bit-vector x
-	2. apply variational circuit layer n-times
-	3. calculate the Pauli-Z expectation value 
-	of the qubits after applying the circuit.
-	"""
-def variational_circuit(W, x):
-
-	# number of qubits
-	n = len(x)
-	
-	# initialize bit vector into quantum state
-	state = stateprep(x, n, 0)
-
-	# for each circuit
-	l = len(W)
-	for i in range(l):
-		# generate quantum circuit with weights
-		c = layer(W[i])
-		# update quantum state with 
-		c.update_quantum_state(state)
-		# debug :: measure state distributions
-		# sample_state_distribution(state, 1000)
-
-	# can probably make list a global variable 
-	# (do not need to define each iteration of variational circuit)
-	obs = Observable(n)
-	# palui z operator measured on 0th qubit, scale by constant 1
-	obs.add_operator(1., 'Z 0')
-
-	return obs.get_expectation_value(state)
-
-
-""" defnes variational classifier, returns
-	expectation value."""
-def variational_classifier(W, b, x):
-	return variational_circuit(W, x) + b
 
 
 
@@ -448,7 +479,7 @@ n_batch = math.ceil(len(X) * batch_size)
 # number of data points in each batch
 
 # create array of random weights
-W_init, l = TNN_unitary_weights(n)
+W_init, l = TNN_init_weights(n)
 # W_init = np.random.normal(0., 0.1, size=(l * n * 3 + 1)) 
 bnds = [] # bounds of weights
 # initialized as N x 2 array
