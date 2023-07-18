@@ -3,6 +3,7 @@ import math
 import pandas as pd
 import numpy as np
 import qulacs
+import math
 from rdkit import Chem
 from rdkit.Chem import AllChem, rdFingerprintGenerator
 from qulacs import QuantumState
@@ -20,6 +21,11 @@ verbose = True
 
 
 ## FUNCTIONS ## 
+
+
+""" DATA AND STATE INITIALIZATION """
+
+
 """ load data for variational classifier training """
 def load_data (dataset):
 	
@@ -78,6 +84,7 @@ def load_parity_data ():
 
 	return X, Y
 
+
 """ measure distribution of quantum states """
 def sample_state_distribution (s, m, save_path = None):
 	
@@ -134,50 +141,137 @@ def qubit_encoding(x, n, m):
 	c.update_quantum_state(state)
 	return state
 
+
 """ initialize qubit state by encoding the amplitudes
 	of the bit vector """
 def amplitude_encoding():
+	# TODO :: implement amplitude encoding
 	pass
 
 
-""" circuit that models a TNN classification network
+""" TNN CIRCUIT ARCHITECHTURE, PARAMETERS """
+
+
+""" method used to initialize unitary weights
+	for TNN clasification ciruits """
+def TNN_unitary_weights(n):
+
+	# check the number of qubits that should be 
+	# input used into the quantum circuit
+	fact = 2
+	layer = 1
+	is_valid = False
+	if (n != 0):
+		# the number of qubits must be non-zero
+		# check that n is an exact factor of two
+		while True:
+			if n == fact: 
+				# the number is exactly factorable by two
+				is_valid = True
+				break
+			elif (fact < n):
+				# continue to increase factor by two 
+				fact = fact * 2
+				layer += 1
+			else:
+				# i is greater than n,
+				# and therefore not an exact factor of 2
+				is_valid = False
+				break
+
+
+	# check that the number passed to the method is correct
+	if (not is_valid):
+		print(f"\nError :: number of qubits N must by an integer of log2(N).")
+		exit()
+	elif (verbose):
+		print(f"\nThere are {layer} layers in the {n} qubit TNN classifier.\n")
+
+
+	# initialize the unitary weights
+	n_weights = 0
+	for l in range(layer):
+		n_weights += 3 * int(n / (2 ** l))
+
+	W = np.random.normal(0., 0.1, size=(int(n_weights + 1))) 
+	return W, layer
+
+
+""" reshapes unitary parameters passed to optimzation
+	function to np array shaped according to the circuit
+	layers. """
+def get_TNN_layer_weights(W, i, n):
+
+	# W :: array containing all weights for all unitary operations
+	# i :: circuit layer to get unitary operations for
+	# n :: number of qubits
+
+	# reshape to 3 x N array
+	w = np.zeros((1))
+	lw = 0 # lower bound of weights in layer
+	for j in range(i):
+		n_weights = int(n / (2 ** (j)))
+		up = lw + 3 * n_weights # upper bound of weights in layer
+		w = W[lw:up].reshape(n_weights, 3)
+		lw = up # old upper bound is new lower bound
+
+	return w
+
+
+""" circuit that models a TNN classification network.
+
 	DOI: https://doi.org/10.1038/s41534-018-0116-9"""
-def TNNclassifier (w, x):
+def TNNclassifier (W, b, x):
+	return TNNcircuit(W, x) + b
+
+
+""" Builds TNN quantum circuit TNN classification
+	protocol. Applies unitary weights to unitary
+	qubit operations, returns expection value of
+	one qubit after application of all circuit 
+	layers. """
+def TNNcircuit (W, x):
 
 	# number of measurement wires
-	m = 1
+	m = 0
 	# number of qubits
 	n = len(x)
-	# initialize bit vector into quantum quivalent
-	state = qubit_encoding(n, m)
+	# initialize bit vector into quantum equivalent
+	state = qubit_encoding(x, n, m) 
 
 	# for each circuit layer
-	l = len(W)
-	for i in range(l):
+	for i in range(1, l + 1):
 		# generate quantum circuit with weights
-		c = TNNcircuit(W[i])
+		c = TNNlayer(W, i, n)
 		# apply circuit with weights to qubits
 		c.update_quantum_state(state)
+
+	exit()
 
 	# can probably make list a global variable 
 	# (do not need to define each iteration of variational circuit)
 	obs = Observable(n)
 	# palui z operator measured on mth qubit, scale by constant 1
+	# measurement = "Z {i}".format(n + m)
 	obs.add_operator(1., 'Z 0')
 
 	return obs.get_expectation_value(state)
 
-""" Builds TNN quantum circuit TNN classification
-	protocol. Applies unitary weights to unitary
-	qubit operations, returns circuit. """
-def TNNcircuit (w):
+
+""" Builds one layer of TNN circuit """
+def TNNlayer (W, i, n):
+
+	w = get_TNN_layer_weights(W, i, n)
 
 	# initialize circuit
 	# number of qubits plus one (M)
-	n = len(w) + 1
 	circuit = QuantumCircuit(n)
 
-	pass
+	return circuit
+
+
+
+""" VARIATIONAL CIRCUIT ARCHITECTURE, PARAMETERS """
 
 
 """ creates an n-qubit circuit, where each qubit
@@ -224,6 +318,7 @@ def layer (w):
 
 	return circuit
 
+
 """ Creates prediction between x and y by:
 
 	1. intializes n-qubit state that represents the 
@@ -262,8 +357,11 @@ def variational_circuit(W, x):
 """ defnes variational classifier, returns
 	expectation value."""
 def variational_classifier(W, b, x):
-	## TODO :: CHECKS!! 
 	return variational_circuit(W, x) + b
+
+
+
+""" CIRCUIT OPTIMIZATION """
 
 
 """ measure squared error  and accuray between 
@@ -298,10 +396,10 @@ def cost_function (W):
 		print(f"Threshold increased from {thershold} to {(thershold + thershold_it)}.")
 		thershold += thershold_it
 
-	# remap weights
+	# remap weights, biases
 	b = W[-1] # last value corresponds to bias
-	W = W[:-1].reshape(l, n ,3) 
-	# everything else are for gate operations
+	W = W[:-1] # remove bias from weights
+	# all others are for gate operations
 
 	# make random testing batch
 	batch_index = np.random.randint(0, high = len(X), size = n_batch)
@@ -314,7 +412,7 @@ def cost_function (W):
 	Y_pred = []
 	for i in range(len(X_batch)):
 		x = X_batch[i]
-		y = variational_classifier(W, b, x)
+		y = TNNclassifier(W, b, x)
 		if abs(y) > thershold:
 			y = np.sign(y)
 		Y_pred.append(y)
@@ -334,14 +432,12 @@ def cost_function (W):
 ## ARGUMENTS ## 
 # number of qubits in quantum circuit
 n = 16
-# number of layers in quantum circuit architechture
-l = 2
 
 ## HYPERPARAMETERS ## 
 n_it = 0 # number of times that the cost function is called
 thershold = 0. # value used to coarse grain binary results
 n_inc = 25 # number of iteractions required for threshold incrementation
-thershold_it = 0.05 # amount to increase threshold by every n_inc iterations
+thershold_it = 0.02 # amount to increase threshold by every n_inc iterations
 batch_size = 0.8 # precentage of data used to create predictions
 
 
@@ -352,7 +448,8 @@ n_batch = math.ceil(len(X) * batch_size)
 # number of data points in each batch
 
 # create array of random weights
-W_init = np.random.normal(0., 0.1, size=(l * n * 3 + 1)) 
+W_init, l = TNN_unitary_weights(n)
+# W_init = np.random.normal(0., 0.1, size=(l * n * 3 + 1)) 
 bnds = [] # bounds of weights
 # initialized as N x 2 array
 for i in range(len(W_init)):
