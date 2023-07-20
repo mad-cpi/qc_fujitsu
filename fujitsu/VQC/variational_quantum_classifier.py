@@ -1,8 +1,11 @@
 import sys, os
 import pandas as pd
 import numpy as np
+# rdkit libraries
 from rdkit import Chem
 from rdkit.Chem import AllChem, rdFingerprintGenerator
+# VQC circuit architectures
+from fujitsu.VQC.circuit_architecture import VC
 
 ## PARAMETERS ## 
 
@@ -56,19 +59,14 @@ default_fp_radius = 3
 # variational quantum classifier 
 class VQC:
 	""" initialization routine for VQC object. """
-	def __init__(self, qubits, circuit = None):
+	def __init__(self, qubits):
 
 		# initialize the number of qubits input 
 		# into the classification circuit
 		self.initialize_VQC_qubits(qubits)
 
 		# initialize the architecture type used for VQC
-		if circuit == None:
-			self.circuit = default_VQC_circuit
-		else:
-			# TODO check that architecture is in 
-			# list of acceptable archite
-			self.circuit = circuit
+		self.circuit = None
 
 		# initialize hyperparameters as off
 		self.thresholding_status = default_threshold_status
@@ -146,7 +144,24 @@ class VQC:
 			for i in range(len(self.Y)):
 				print("X = {}, Y = {:.2f}".format(self.X[i], self.Y[i]))
 
-	def write_data (self):
+
+	""" method used to initialize the VQC circuit architecture, unitary weights. """
+	def initialize_circuit(self, circuit = None, QFT = False, bit_correlation = False):
+
+		# initialize the circuit architecture
+		if circuit == None:
+			self.circuit = default_VQC_circuit
+		else:
+			# TODO check that architecture is in 
+			# list of acceptable archite
+			self.circuit = circuit
+
+		# initialize unitary weights and their upper and lower bounds
+		# according to the number of qubits and circuit architecture
+
+
+	""" method used to write bit strings and classification to external file."""
+	def write_data (self, path):
 		pass
 
 
