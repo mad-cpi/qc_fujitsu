@@ -7,5 +7,5 @@ import numpy as np
 
 ## CIRCUIT ARCHITECTURE / METHODS ## 
 class VC:
-	def __init__(self):
-		pass
+	def __init__(self, layers = None):
+		self.layers = None

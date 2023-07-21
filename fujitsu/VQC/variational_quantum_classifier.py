@@ -77,7 +77,9 @@ class VQC:
 		self.Y = None
 
 		# array containing weights of unitary operations
+		# and their upper and lower boundaries
 		self.W = None
+		self.B = None
 
 	""" method used to wrap qubit initialization. """
 	def initialize_VQC_qubits(self, qubits):
@@ -148,6 +150,8 @@ class VQC:
 	""" method used to initialize the VQC circuit architecture, unitary weights. """
 	def initialize_circuit(self, circuit = None, QFT = False, bit_correlation = False):
 
+		## TODO :: prevent this method for being called if there is no data associated with the object
+
 		# initialize the circuit architecture
 		if circuit == None:
 			self.circuit = default_VQC_circuit
@@ -158,6 +162,7 @@ class VQC:
 
 		# initialize unitary weights and their upper and lower bounds
 		# according to the number of qubits and circuit architecture
+		self.W, self.B = self.circuit.initial_weights(self.qubits)
 
 
 	""" method used to write bit strings and classification to external file."""
