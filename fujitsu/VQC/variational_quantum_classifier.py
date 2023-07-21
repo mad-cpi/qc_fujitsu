@@ -154,15 +154,55 @@ class VQC:
 
 		# initialize the circuit architecture
 		if circuit == None:
-			self.circuit = default_VQC_circuit
+			self.circuit = VC(default_VQC_circuit)
 		else:
 			# TODO check that architecture is in 
 			# list of acceptable archite
-			self.circuit = circuit
+			self.circuit = VC(circuit)
 
 		# initialize unitary weights and their upper and lower bounds
 		# according to the number of qubits and circuit architecture
 		self.W, self.B = self.circuit.initial_weights(self.qubits)
+
+	""" initialize batching protcol for optimization """
+	def set_batching(self, status, batch_size = None):
+
+		if status == True:
+			# turn on the batching routine
+			self.batch_status = True
+
+			# if the batch size was not passed to the method
+			if batch_size == None:
+				# assign the default batch size
+				self.batch_size = default_batch_size
+			else:
+				# check that the batch size value passed to the method is correct
+				if batch_size <= 1. and batch_size > 0.:
+					# if the value is between one and zero
+					self.batch_size = batch_size
+				else:
+					# assign the default value
+					self.batch_size = default_batch_size
+
+	""" initialize tresholding protocol for optimization routine """
+	def set_thresholding(self, status, threshold = None):
+
+		if status == True:
+			# turn on the tresholding routine
+			self.thresholding_status = True
+
+			# if the threshold was no passed to the method
+			if threshold == None:
+				# assign the default value
+				self.threshold = default_threshold
+			else:
+				# check that the value passed to the method is correct
+				if threshold > 0. and threshold < 1.:
+					# if the value is between one and zero
+					self.threshold = threshold
+				else:
+					# assign the default
+					threshold = default_threshold
 
 
 	""" method used to write bit strings and classification to external file."""

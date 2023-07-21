@@ -373,6 +373,8 @@ def variational_circuit(W, x):
 	# initialize bit vector into quantum state
 	state = qubit_encoding(x, n, 0)
 
+	# apply QFT
+
 	# for each circuit
 	l = len(W)
 	for i in range(l):
@@ -424,15 +426,15 @@ def layer (w):
 		# in the schulgin data set, the first 5 features
 		# in the 16 bit fingerprint are all the same for the 
 		# entire dataset, so do not apply control bits to those features
-		if i >= 5 or i == (n-1):
-			# target bit
-			j = i + 1 
-			if j >= n:
-				j = 0
-			# apply control bit to target bit
-			gate = CNOT (i, j)
-			# add to circuit
-			circuit.add_gate(gate)
+		# if i >= 5 or i == (n-1):
+		# target bit
+		j = i + 1 
+		if j >= n:
+			j = 0
+		# apply control bit to target bit
+		gate = CNOT (i, j)
+		# add to circuit
+		circuit.add_gate(gate)
 
 	return circuit
 
@@ -521,7 +523,7 @@ batch_size = 0.8 # precentage of data used to create predictions
 
 ## SCRIPT ##
 
-X, Y = load_data(dataset = "AChE_activity_data")
+X, Y = load_data(dataset = "test_activity_data")
 n_batch = math.ceil(len(X) * batch_size)
 # number of data points in each batch
 
