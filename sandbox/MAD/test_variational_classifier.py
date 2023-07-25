@@ -354,6 +354,7 @@ def get_TNN_wires(i, n):
 """ defnes variational classifier, returns
 	expectation value."""
 def variational_classifier(W, b, x):
+	# TODO remap weights here
 	return variational_circuit(W, x) + b
 
 

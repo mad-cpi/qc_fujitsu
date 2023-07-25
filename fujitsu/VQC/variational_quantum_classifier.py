@@ -154,15 +154,59 @@ class VQC:
 
 		# initialize the circuit architecture
 		if circuit == None:
-			self.circuit = VC(default_VQC_circuit)
+			self.circuit = VC(self.qubits)
 		else:
 			# TODO check that architecture is in 
 			# list of acceptable archite
-			self.circuit = VC(circuit)
+			self.circuit = VC(self.qubits)
 
 		# initialize unitary weights and their upper and lower bounds
 		# according to the number of qubits and circuit architecture
-		self.W, self.B = self.circuit.initial_weights(self.qubits)
+		self.W, self.B = self.circuit.initial_weights()
+
+	""" method used to calculate the error of a give set of unitary weights 
+		in predicting the class of a given set of bit strings. """
+	def cost_function(W):
+
+		# if thresholding is turned on, establish the threshold
+		if self.thresholding_status:
+			print ("TODO :: implement thresholding.")
+		else:
+			t = 0.99
+
+		# if batching is turned on
+		if batch_status:
+			# generate a random list of X and Y
+			index = np.random.randint(0, high = len(X), size = n_batch)
+		else:
+			index = [x for x in range(len(self.X))]
+
+		# make predictions for all X values
+		# if values are above the treshhold
+		# assume the predctions are correct
+		Y_pred = []
+		for i in index:
+			# get the smile strings
+			x = self.X[i]
+
+			# make a prediction
+			y = self.circuit.classify(W, x)
+
+			if self.thresholding_status:
+				print ("TODO :: implement thresholding.")
+
+			# add the prediction and its known value to the list
+			Y_pred.append([y, Y[i]])
+
+
+		# calculate the cost and accuracy of the weights
+		cost, acc = error(Y_pred)
+
+		# return the value to the user
+		return cost
+
+
+
 
 	""" initialize batching protcol for optimization """
 	def set_batching(self, status, batch_size = None):
@@ -185,7 +229,7 @@ class VQC:
 					self.batch_size = default_batch_size
 
 	""" initialize tresholding protocol for optimization routine """
-	def set_thresholding(self, status, threshold = None):
+	def set_threshold(self, status, threshold = None):
 
 		if status == True:
 			# turn on the tresholding routine
