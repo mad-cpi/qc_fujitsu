@@ -14,16 +14,16 @@ max_qubits = 5
 
 def qft(circuit,n):
 
-	n_init = n
-	while n >0:
-		a = n_init-n
-		circuit.add_gate(H(a)) # Apply the H-gate to the most significant qubit
-		for qubit in range(n-1):
-			x= 1j*pi/2**(qubit+1)
-			den_gate = DenseMatrix([a,a+qubit+1],[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,cmath.exp(x)]])
-			circuit.add_gate(den_gate)
-		n = n-1
-	return circuit
+    n_init = n
+    while n >0:
+        a = n_init-n
+        circuit.add_gate(H(a)) # Apply the H-gate to the most significant qubit
+        for qubit in range(n-1):
+            x= 1j*pi/2**(qubit+1)
+            den_gate = DenseMatrix([a,a+qubit+1],[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,cmath.exp(x)]])
+            circuit.add_gate(den_gate)
+        n = n-1
+    return circuit
 
 def inverse_qft(circuit,n):
     circuit = qft(circuit,n)
@@ -124,8 +124,11 @@ def sum_QFT (m, k):
 	iQFT = inverse_qft(iQFT, n)
 
 	iQFT.update_quantum_state(mk_state)
-	int_out = mk_state.sampling(1)
-	print(f"The output integer is {int_out[0]}.")
+	int_out = mk_state.sampling(10)
+	b = '{:0{width}b}'.format(int_out[0], width=n)
+	rev_int = int(b[::-1], 2)     # Reversing the bits to adjust for qulac
+	print(rev_int)
+	print(f"The output integer is {rev_int}.")
 
 
 """ measure distribution of quantum states """
@@ -154,3 +157,4 @@ def sample_state_distribution (s, m, save_path = None):
 
 if __name__ == '__main__':
 	sum_QFT(21,2)
+
