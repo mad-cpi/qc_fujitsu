@@ -65,10 +65,7 @@ def integer_basis_embedding (m):
 
 	# set quantum state in computational basis, return to user
 	c.update_quantum_state(state)
-	print("Embedded")
-	print(state)
-	data = state.sampling(m)
-	print(data)
+
 	return state, n
 
 """ creates circruit that adds k to m in the fourier basis state """
@@ -105,36 +102,30 @@ def sub_k_fourier(k,circuit, n):
 	basis. """
 def sum_QFT (m, k):
 
- 	# TODO :: set limits for m and k so that
- 	# too many qubits aren't initiated
+	# TODO :: set limits for m and k so that
+	# too many qubits aren't initiated
+	print(f"Adding {m} and {k}.")
 
- 	# embed m as n qubits via the computational basis
-    mk_state, n = integer_basis_embedding(m)
-    sample_state_distribution(mk_state, 1000)
-    
- 	# place m in the Fourier basis 
-    
-    QFT = QuantumCircuit(n)
-    QFT = qft(QFT, n)
+	# embed m as n qubits via the computational basis
+	mk_state, n = integer_basis_embedding(m)
+	int_in = mk_state.sampling(1)
+	print(f"The input integer is {int_in[0]}")
 
- 	# embed k in m_state via QFT
+	# place m in the Fourier basis 
+	QFT = QuantumCircuit(n)
+	QFT = qft(QFT, n)
 
-    ck = add_k_fourier(k, QFT, n)
-    ck.update_quantum_state(mk_state)
+	# embed k in m_state via QFT
+	ck = add_k_fourier(k, QFT, n)
+	ck.update_quantum_state(mk_state)
 
-    data = mk_state.sampling(m)
-    print(data)
-    print(mk_state)
-    
-    sample_state_distribution(mk_state, 1000)
+	# apply inverse fourier transform to the mk state
+	iQFT = QuantumCircuit(n)
+	iQFT = inverse_qft(iQFT, n)
 
- 	# apply inverse fourier transform to the mk state
-    iQFT = QuantumCircuit(n)
-    iQFT = inverse_qft(iQFT, n)
-
-    iQFT.update_quantum_state(mk_state)
-    print(mk_state)
-    sample_state_distribution(mk_state, 1000)
+	iQFT.update_quantum_state(mk_state)
+	int_out = mk_state.sampling(1)
+	print(f"The output integer is {int_out[0]}.")
 
 
 """ measure distribution of quantum states """
@@ -161,4 +152,5 @@ def sample_state_distribution (s, m, save_path = None):
 		# save the state to the path
 		plt.savefig(save_path, dpi = 400, bboxinches = 'tight')
 
-sum_QFT(21,2)
+if __name__ == '__main__':
+	sum_QFT(21,2)
