@@ -14,16 +14,16 @@ max_qubits = 5
 
 def qft(circuit,n):
 
-    n_init = n
-    while n >0:
-        a = n_init-n
-        circuit.add_gate(H(a)) # Apply the H-gate to the most significant qubit
-        for qubit in range(n-1):
-            x= 1j*pi/2**(qubit+1)
-            den_gate = DenseMatrix([a,a+qubit+1],[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,cmath.exp(x)]])
-            circuit.add_gate(den_gate)
-        n = n-1
-    return circuit
+	n_init = n
+	while n >0:
+		a = n_init-n
+		circuit.add_gate(H(a)) # Apply the H-gate to the most significant qubit
+		for qubit in range(n-1):
+			x= 1j*pi/2**(qubit+1)
+			den_gate = DenseMatrix([a,a+qubit+1],[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,cmath.exp(x)]])
+			circuit.add_gate(den_gate)
+		n = n-1
+	return circuit
 
 def inverse_qft(circuit,n):
     circuit = qft(circuit,n)
