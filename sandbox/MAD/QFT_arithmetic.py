@@ -38,47 +38,20 @@ def reverse(string):
     string = string[::-1]
     return string
 
-def integer_basis_embedding (m):
-
-	# get binary string representation of string
-	binary = format(m, 'b')
-	binary = reverse(binary)   # Qulacs is arranged in a different bit format where the LSB is on the right
-	
-	# initialize n-qubit state
-	n = len(binary)
-	# check that the length is not above the allowable limit
-	if n > max_qubits:
-		print(f"Number of qubits N ({n}) is above the allowable limit for a desktop computer.")
-		exit()
-	state = QuantumState(n)
-	state.set_zero_state()
-
-	# initialize circuit used to set qubit state in
-	# corresponding computational basis
-	c = QuantumCircuit(n)
-	# for each integer in the binary string
-	for x in range(len(binary)):
-		# if the bit is one
-		if binary[x] == '1':
-			# add X gate to corresponding qubit
-			c.add_X_gate(x)
-
-	# set quantum state in computational basis, return to user
-	c.update_quantum_state(state)
-
-	return state, n
 
 """ creates circruit that adds k to m in the fourier basis state """
 def add_k_fourier(k,circuit, n):
 	# TODO :: check that k is an integer with the same bit size as m
 
-	# for each qubit in the m-fourier basis state
-	for x in range(n):
-		# create RZ gate 
-		gate = RZ(x, -k * np.pi / (2 ** (n-x-1)))
-		# add gate to circuit
-		circuit.add_gate(gate)
+	# get binary string representation of string
 
+	# for each qubit in the m-fourier basis state
+	for i in range(k):
+		for x in range(n):
+			gate = RZ(x, -np.pi/(2**(n-x-1)))
+	        # add gate to circuit
+			circuit.add_gate(gate)
+	
 	# return circuit to user
 	return circuit
 
@@ -88,11 +61,11 @@ def sub_k_fourier(k,circuit, n):
 	# TODO :: check that k is an integer with the same bit size as m
 
 	# for each qubit in the m-fourier basis state
-	for x in range(n):
-		# create RZ gate 
-		gate = RZ(x, -k * np.pi / (2 ** (n-x-1)))
-		# add gate to circuit
-		circuit.add_gate(gate)
+	for i in range(k):
+		for x in range(n):
+			gate = RZ(x, np.pi/(2**(n-x-1)))
+	        # add gate to circuit
+			circuit.add_gate(gate)
 
 	# return circuit to user
 	return circuit
@@ -107,27 +80,30 @@ def sum_QFT (m, k):
 	print(f"Adding {m} and {k}.")
 
 	# embed m as n qubits via the computational basis
-	mk_state, n = integer_basis_embedding(m)
-	int_in = mk_state.sampling(1)
-	print(f"The input integer is {int_in[0]}")
+
+	n = 5
+	state = QuantumState(n)
+	state.set_zero_state()
 
 	# place m in the Fourier basis 
 	QFT = QuantumCircuit(n)
-	QFT = qft(QFT, n)
 
+	QFT = qft(QFT, n)
+	QFT.update_quantum_state(state)
+	ck = QuantumCircuit(n)
 	# embed k in m_state via QFT
-	ck = add_k_fourier(k, QFT, n)
-	ck.update_quantum_state(mk_state)
+	ck = add_k_fourier(m, ck, n)
+	ck = add_k_fourier(k, ck, n)
+	ck.update_quantum_state(state)
 
 	# apply inverse fourier transform to the mk state
 	iQFT = QuantumCircuit(n)
 	iQFT = inverse_qft(iQFT, n)
 
-	iQFT.update_quantum_state(mk_state)
-	int_out = mk_state.sampling(10)
+	iQFT.update_quantum_state(state)
+	int_out = state.sampling(10)
 	b = '{:0{width}b}'.format(int_out[0], width=n)
-	rev_int = int(b[::-1], 2)     # Reversing the bits to adjust for qulac
-	print(rev_int)
+	rev_int = int(b[::-1], 2)
 	print(f"The output integer is {rev_int}.")
 
 
@@ -156,5 +132,5 @@ def sample_state_distribution (s, m, save_path = None):
 		plt.savefig(save_path, dpi = 400, bboxinches = 'tight')
 
 if __name__ == '__main__':
-	sum_QFT(21,2)
+	sum_QFT(15,5)
 
