@@ -1,0 +1,9 @@
+name: QC
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python
+  - numpy
+  - pandas
+prefix: /Users/collabpharma/opt/anaconda3/envs/QC

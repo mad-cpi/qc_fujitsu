@@ -1,0 +1,16 @@
+def qft(circuit,m):
+
+	n_init = m
+	n = 0
+	a = 5 -
+	while n < n_init:
+		print(f"{a}, {n}")
+		circuit.add_gate(H(a)) # Apply the H-gate to the most significant qubit
+		for qubit in range(a):
+			print(f"{qubit}")
+			x= 1j*pi/2**(qubit)
+			den_gate = DenseMatrix([a,qubit],[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,cmath.exp(x)]])
+			circuit.add_gate(den_gate)
+		n = n + 1
+		a = a - 1
+	return circuit
