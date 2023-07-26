@@ -1,5 +1,5 @@
 from qulacs import QuantumState, QuantumCircuit, ParametricQuantumCircuit
-from qulacs.gate import CZ, RY, RZ, merge, H, DenseMatrix, SWAP
+from qulacs.gate import CZ, RY, RZ, merge, H, DenseMatrix, SWAP, to_matrix_gate
 from qulacs import Observable
 import pandas as pd
 import numpy as np
@@ -114,6 +114,7 @@ def sum_QFT (m, k):
 	# place m in the Fourier basis 
 	QFT = QuantumCircuit(n)
 	QFT = qft(QFT, n)
+	QFT.update_quantum_state(mk_state)
 
 	# embed k in m_state via QFT
 	ck = add_k_fourier(k, QFT, n)
@@ -128,7 +129,7 @@ def sum_QFT (m, k):
 	b = '{:0{width}b}'.format(int_out[0], width=n)
 	rev_int = int(b[::-1], 2)     # Reversing the bits to adjust for qulac
 	print(rev_int)
-	print(f"The output integer is {rev_int}.")
+	print(f"The output integer is {int_out[0]}.")
 
 
 """ measure distribution of quantum states """
@@ -156,5 +157,5 @@ def sample_state_distribution (s, m, save_path = None):
 		plt.savefig(save_path, dpi = 400, bboxinches = 'tight')
 
 if __name__ == '__main__':
-	sum_QFT(21,2)
+	sum_QFT(21,6)
 
