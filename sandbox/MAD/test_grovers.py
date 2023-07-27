@@ -7,7 +7,6 @@ from numpy import pi
 import math
 import matplotlib.pyplot as plt
 import seaborn as sns
-from QFT_arithmetic import integer_basis_embedding
 from QFT_arithmetic import sum_QFT
 from QFT_arithmetic import qft, inverse_qft
 
@@ -164,5 +163,8 @@ def sample_state_distribution (s, m, LSB = False, bits = None, save_path = None)
 		plt.savefig(save_path, dpi = 400, bboxinches = 'tight')
 
 
-test_QFT(6)
+# test_QFT(6)
+sum_QFT(5, 6)
+sum_QFT(21, 5)
+sum_QFT(22, 8)
 
