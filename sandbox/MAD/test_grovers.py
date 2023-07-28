@@ -8,29 +8,35 @@ import math
 import matplotlib.pyplot as plt
 import seaborn as sns
 from QFT_arithmetic import sum_QFT
-from QFT_arithmetic import qft, inverse_qft
 
 ## PARAMETERS ## 
 # maximum number of allowable qubits that can be initialized
 max_qubits = 5
 
-""" method that embeds Fourier basis of values contained in
-	control qubits in the target qubits."""
-def embed_QFT(control_qubits, target_qubits):
 
-	c_QFT = QuantumCircuit(len(target_qubits))
+""" creates and returns 3 qubit circuit which contains qAND operation ."""
+def qAND ():# test creation of 3-qubit dense matrix gate
 
-	for c in range(len(control_qubits)):
-		val = 2 ** (len(control_qubits) - c - 1)
-		for t in range(len(target_qubits)):
-			gate = RZ(target_qubits[t], -val * np.pi / (2 ** t))
-			gate_mat = to_matrix_gate(gate)
-			print(control_qubits[c])
-			gate_mat.add_control_qubit(control_qubits[c], 1)
-			print(gate)
-			print(gate_mat)
+	# dense matrix describing qAND operation
+	matrix_qAND =  [[1, 0, 0, 0, 0, 0, 0, 0],
+					[0, 1, 0, 0, 0, 0, 0, 0],
+					[0, 0, 1, 0, 0, 0, 0, 0],
+					[0, 0, 0, 1, 0, 0, 0, 0],
+					[0, 0, 0, 0, 1, 0, 0, 0],
+					[0, 0, 0, 0, 0, 1, 0, 0],
+					[0, 0, 0, 0, 0, 0, 0, 1],
+					[0, 0, 0, 0, 0, 0, 1, 0]]
 
-	return c_QFT
+	# bits that perform qAND operation
+	bits = [0, 1, 2]
+
+	# create circuit
+	gate_qAND = DenseMatrix(bits, matrix_qAND)
+
+	# create 3-bit circuit, add gate, return to user
+	c = QuantumCircuit(3)
+	c.add_gate(gate_qAND)
+	return c
 
 """ method that embeds in integer as the computational basis
 	of an n-qubit state. """
@@ -38,80 +44,67 @@ def reverse(string):
     string = string[::-1]
     return string
 
-""" embed the value of an integer m within the state of 
-	a list of target qubits that are passed to the method.
+""" method that generates a state described by a string, where
+	the length of the string describes the number of qubits in
+	the state, and each character describes how each qubit should
+	be initialize:
 
-	NOTE :: the binary representation of m must no more than
-	the number of target qubits that were specified. """
-def integer_basis_embedding (m, state, target_qubits):
+		0 = computational basis of 0
+		1 = computational basis of 1
+		+ = positive superposition between 0 and 1
+		- = negative superposition between - and 1
 
-	# get binary string representation of string
-	binary = format(m, 'b')
-	rev_binary = reverse(binary)   
+	"""
+def gen_state(bit_string):
 
-	# check that the number of binary bits is not
-	# greater than the number of target qubits
-	if (len(binary) > len(target_qubits)):
-		print(f"The number of target qubits ({len(target_qubits)}) is not enough for the binary string ({binary})")
-		exit()
+	# reverse bit string due to qulacs nomenclature
+	# (in qulacs, 0th bit is represented by the right now digit,
+	# not the leftmost)
+	bit_string = reverse(bit_string)
 
-	# initialize circuit used to set qubit state in
-	# corresponding computational basis
-	print(f"Storing binary ({binary}) in qubit registar ({target_qubits}).")
-	c = QuantumCircuit(state.get_qubit_count())
-	# store each binary used to describe the integer
-	# backwards, starting from the last qubit in the list
-	for x in range(len(binary) - 1, -1, -1):
-		# if the bit is one
-		if binary[x] == '1':
-			# determine the appropriate qubit
-			q = len(target_qubits) - (len(binary) - x - 1)
-			# add X gate to corresponding qubit
-			c.add_X_gate(target_qubits[q])
+	# get the number of qubits in the string, initialize quantum state
+	# in the computationa zero basis
+	n = len(bit_string)
+	s = QuantumState(n)
+	s.set_zero_state()
 
-	# set quantum state in computational basis, return to user
-	c.update_quantum_state(state)
+	# create circuit that initializes the quantum state in one
+	# described by the bit string passed to the method
+	c = QuantumCircuit(n)
+	for i in range(len(bit_string)):
+		# add gates to circuit depending on the operation
+		# described by the character in the bit string
+		b = bit_string[i]
+		if b == '0':
+			# the state of the bit corresponding to the character
+			# has already been initialized in the zero state
+			pass 
+		elif b == '1':
+			# add an X gate to the circuit for the qubit corresponding 
+			# to the character, which flips the bit from 0 to 1
+			c.add_X_gate(i)
+		elif b == '+':
+			# apply hadamar gate to circuit for qubit corresponding
+			# to the character, which places the qubit in a positive
+			# super position
+			c.add_H_gate(i)
+		elif b == '-':
+			# add an X gate and an H gate to the circuit for the 
+			# qubit corresponding to the character, which places the qubit
+			# in a negative superposition
+			c.add_X_gate(i)
+			c.add_H_gate(i)
 
-	return state
+	# apply circuit to state, return the state to the user
+	c.update_quantum_state(s)
+	return s
 
-def test_QFT(m):
-
-	# translate computational basis of control qubits 
-	# to the fourier basis stored in the target qubits
-
-	# initialize quantum state that will contain both computational
-	# and fourier basis of integer m
-	comp_qubits = [x for x in range(len(format(m, 'b')))]
-	four_qubits = [x for x in range(len(comp_qubits), len(comp_qubits) * 2)]
-	m_state = QuantumState(len(comp_qubits) + len(four_qubits))
-	m_state.set_zero_state()
-
-	# place integer in the computational basis
-	m_state = integer_basis_embedding(m, m_state, comp_qubits)
-	int_in = m_state.sampling(1)
-	# TODO :: get method that pulls integer from binary string with right LSB
-	print(f"The input integer is {int_in[0]}")
-	# sample_state_distribution(m_state, 1000, bits = comp_qubits, LSB = False)
-
-	# convert m to the Fourier basis
-	c = embed_QFT(comp_qubits, four_qubits)
-
-	# m_state = QuantumState(m)
-	# m_state.set_zero_state()
-	# QFT = QuantumCircuit(m)
-	# QFT = qft(QFT, m)
-	# QFT.update_quantum_state(m_state)
-
-
-	# remove m from Fourier basis
-	# iQFT = QuantumCircuit(n)
-	# iQFT = inverse_qft(iQFT, n)
-	# iQFT.update_quantum_state(m_state)
-
-	# # check the integer 
-	# int_out = m_state.sampling(1)
-	# print(f"The output integer after QFT and iQFT is {int_out[0]}.")
-
+""" Returns circuit that applies grover's algorithm according to 
+	"Quantum Computationa and Quantum Information" by Nielsen and 
+	Chuang, Box 6.1 """
+def grovers():
+	# 
+	pass
 
 """ measure distribution of quantum states.
 
@@ -163,8 +156,16 @@ def sample_state_distribution (s, m, LSB = False, bits = None, save_path = None)
 		plt.savefig(save_path, dpi = 400, bboxinches = 'tight')
 
 
-# test_QFT(6)
-sum_QFT(5, 6)
-sum_QFT(21, 5)
-sum_QFT(22, 8)
+# create 3 bit quantum state
+init_state = '++-'
+state = gen_state(init_state)
+
+# apply qAND gate to circuit, measure results
+c_qAND = qAND()
+c_qAND.update_quantum_state(state)
+sample_state_distribution(state, 10000)
+
+# perform sign flip operation
+c_flip = grovers(2, 1)
+
 
