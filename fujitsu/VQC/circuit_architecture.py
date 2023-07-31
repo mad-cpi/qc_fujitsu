@@ -82,7 +82,7 @@ class VC:
 		# make prediction, return to method
 		return self.predict (w, x) + b
 
-	## VC circuit architecture methods
+	## VC circuit architecture methods ## 
 
 	""" method that initializes the weights of a circuit according
 		to the circuit architecture, number of layers, qubits, etc. """

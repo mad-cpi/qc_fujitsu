@@ -205,11 +205,18 @@ class VQC:
 		# return the value to the user
 		return cost
 
-	""" method used to optimize the weights of a variational circuit according
+	""" method used to optimize the current weights of a variational circuit according
 		to the dataset sotored within the variational classification circuit
 		object. """
-	def optimize():
-		pass
+	def optimize(self):
+
+		opt = minimize (cost_function, self.W, method = 'Powell', bounds = self.B)
+
+		# assign the optimal weights to the classification circuit
+		self.W = opt.x
+		print("\nFinal value of error function after optimization: {:0.3f}.".format(opt.fun))
+
+		# TODO :: save weights!!
 
 	""" initialize batching protcol for optimization """
 	def set_batching(self, status, batch_size = None):
