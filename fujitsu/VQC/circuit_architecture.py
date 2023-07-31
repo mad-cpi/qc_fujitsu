@@ -15,6 +15,8 @@ class VC:
 		self.qubits = qubits
 		self.layers = 2
 
+	""" method that initializes the weights of a circuit according
+		to the circuit architecture, number of layers, qubits, etc. """
 	def initial_weights(self):
 
 		# create array of initial weights
@@ -32,6 +34,30 @@ class VC:
 				bounds.append((None, None))
 
 		return W_init, bounds
+
+	""" method used to reshape list of unitary weights into array containing
+		weights for each layer, and bias used to shift prediction. """
+	def reweight(W):
+		pass 
+
+	""" quantum variational circuit function that predicts the classification of 
+		input information x according the function operations specified by the 
+		unitary weights for each circuit layer. """
+	def predict (w, x):
+		pass
+
+	""" methed used by all classification circuits. weights passed to method (W) 
+		are used to make prediction / classification for bit string passed to method (x). """
+	def classify(W, x):
+
+		# reshape weights into arrays representing unitary weights for
+		# each layer of classification circuit, and circuit bias
+		w, b = reweigh(W)
+
+		# make prediction, return to method
+		return predict (w, x) + b
+
+
 
 
 

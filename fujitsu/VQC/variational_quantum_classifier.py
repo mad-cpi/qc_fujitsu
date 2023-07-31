@@ -205,8 +205,11 @@ class VQC:
 		# return the value to the user
 		return cost
 
-
-
+	""" method used to optimize the weights of a variational circuit according
+		to the dataset sotored within the variational classification circuit
+		object. """
+	def optimize():
+		pass
 
 	""" initialize batching protcol for optimization """
 	def set_batching(self, status, batch_size = None):
@@ -247,7 +250,6 @@ class VQC:
 				else:
 					# assign the default
 					threshold = default_threshold
-
 
 	""" method used to write bit strings and classification to external file."""
 	def write_data (self, path):
