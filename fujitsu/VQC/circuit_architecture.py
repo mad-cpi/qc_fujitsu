@@ -8,12 +8,41 @@ import numpy as np
 upper_unitary_boundary = 2. * math.pi 
 # lower boundary of each universal unitary operation
 lower_unitary_boundary = -2. * math.pi
+# default QFT status, determine if QFT is applied to
+# quantum state in computational basis before applying
+# variational circuit layers / uinitary transormations
+default_QFT_status = True
 
 ## CIRCUIT ARCHITECTURE / METHODS ## 
 class VC:
 	def __init__(self, qubits):
 		self.qubits = qubits
 		self.layers = 2
+		self.set_QFT_status()
+
+	## generic circuit architecture circuit methods
+
+	""" method for initializing the QFT status."""
+	def set_QFT_status(self, status = False):
+
+		# initialize the QFT status
+		if status == False or status == True:
+			self.QFT_status = status 
+		else:
+			self.QFT_status = default_QFT_status
+
+	""" methed used by all classification circuits. weights passed to method (W) 
+		are used to make prediction / classification for bit string passed to method (x). """
+	def classify(W, x):
+
+		# reshape weights into arrays representing unitary weights for
+		# each layer of classification circuit, and circuit bias
+		w, b = reweigh(W)
+
+		# make prediction, return to method
+		return predict (w, x) + b
+
+	## VC circuit architecture methods
 
 	""" method that initializes the weights of a circuit according
 		to the circuit architecture, number of layers, qubits, etc. """
@@ -38,24 +67,24 @@ class VC:
 	""" method used to reshape list of unitary weights into array containing
 		weights for each layer, and bias used to shift prediction. """
 	def reweight(W):
-		pass 
+		# get the layer weights and bias for circuit
+		b = W[-1] # bias is last element in list
+		w = W[:-1].reshape(l, n, 3) # remove bias, reshape according to number of layers
+		# return to user
+		return w, b
 
 	""" quantum variational circuit function that predicts the classification of 
 		input information x according the function operations specified by the 
 		unitary weights for each circuit layer. """
 	def predict (w, x):
-		pass
+		
+		# initialize qubit state
 
-	""" methed used by all classification circuits. weights passed to method (W) 
-		are used to make prediction / classification for bit string passed to method (x). """
-	def classify(W, x):
+		# TODO :: apply QFT to circuit
 
-		# reshape weights into arrays representing unitary weights for
-		# each layer of classification circuit, and circuit bias
-		w, b = reweigh(W)
+		# apply circuit layers to quantum state
 
-		# make prediction, return to method
-		return predict (w, x) + b
+		# measure the expectation value of the circuit
 
 
 
