@@ -109,7 +109,7 @@ class VC:
 	def reweight(self, W):
 		# get the layer weights and bias for circuit
 		b = W[-1] # bias is last element in list
-		w = W[:-1].reshape(l, n, 3) # remove bias, reshape according to number of layers
+		w = W[:-1].reshape(self.layers, self.qubits, 3) # remove bias, reshape according to number of layers
 		# return to user
 		return w, b
 

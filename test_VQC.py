@@ -7,6 +7,6 @@ path = "./data/test_activity_set.csv"
 vqc = VQC(qubits = 16)
 vqc.load_data(path = path, smile_col = 'SMILES', class_col = 'single-class-label', verbose = True)
 vqc.initialize_circuit(circuit = 'VC', QFT = False, bit_correlation = False)
-vqc.set_threshold(status = True)
-vqc.set_batching(status = True)
+# vqc.set_threshold(status = True)
+# vqc.set_batching(status = True)
 vqc.optimize()

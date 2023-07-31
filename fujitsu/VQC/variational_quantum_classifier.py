@@ -1,9 +1,11 @@
 import sys, os
 import pandas as pd
 import numpy as np
+import math
 # rdkit libraries
 from rdkit import Chem
 from rdkit.Chem import AllChem, rdFingerprintGenerator
+from scipy.optimize import minimize
 # VQC circuit architectures
 from fujitsu.VQC.circuit_architecture import VC
 
@@ -166,7 +168,7 @@ class VQC:
 
 	""" method used to calculate the error of a give set of unitary weights 
 		in predicting the class of a given set of bit strings. """
-	def cost_function(W):
+	def cost_function(self, W):
 
 		# if thresholding is turned on, establish the threshold
 		if self.thresholding_status:
@@ -175,9 +177,11 @@ class VQC:
 			t = 0.99
 
 		# if batching is turned on
-		if batch_status:
+		if self.batch_status:
 			# generate a random list of X and Y
-			index = np.random.randint(0, high = len(X), size = n_batch)
+			# TODO :: double check that this works
+			n_batch = math.floor(self.batch_size * len(self.X))
+			index = np.random.randint(0, high = len(self.X), size = n_batch)
 		else:
 			index = [x for x in range(len(self.X))]
 
@@ -210,7 +214,7 @@ class VQC:
 		object. """
 	def optimize(self):
 
-		opt = minimize (cost_function, self.W, method = 'Powell', bounds = self.B)
+		opt = minimize (self.cost_function, self.W, method = 'Powell', bounds = self.B)
 
 		# assign the optimal weights to the classification circuit
 		self.W = opt.x
