@@ -2,6 +2,7 @@ import sys, os
 import math
 import pandas as pd
 import numpy as np
+from qulacs import QuantumState, QuantumCircuit
 
 ## PARAMETERS ## 
 # upper boundary of each universal unitary operation
@@ -13,7 +14,46 @@ lower_unitary_boundary = -2. * math.pi
 # variational circuit layers / uinitary transormations
 default_QFT_status = True
 
-## CIRCUIT ARCHITECTURE / METHODS ## 
+## METHODS UTILIZEDS BY CIRCUIT ARCHITECTURE ##
+
+""" method the reverses the order of a bit string
+	(in qulacs, the rightmost bit corresponds to
+	the zeroth qubit). """
+def reverse(s):
+    s = s[::-1]
+    return s
+
+""" method used to initialize qubit state in computational basis corresponding
+	to bit string passed to the method. """
+def qubit_encoding (x):
+
+	# reverse bit string due to qulacs nomenclature
+	# (in qulacs, 0th bit is represented by the right now digit,
+	# not the leftmost)
+	x = reverse(x)
+
+	# get the number of qubits in the string, initialize quantum state
+	# in the computationa zero basis
+	n = len(x)
+	s = QuantumState(n)
+	s.set_zero_state()
+
+	# initialize circuit used to set qubit state in
+	# corresponding computational basis
+	c = QuantumCircuit(n)
+	# for each integer in the binary string
+	for i in range(len(x)):
+		# if the bit is one
+		if x[i] == '1':
+			# add X gate to corresponding qubit
+			c.add_X_gate(i)
+
+	# use circuit to update quantum state, return to user
+	c.update_quantum_state(s)
+	return s
+
+
+## CIRCUIT ARCHITECTURE CLASS METHODS ## 
 class VC:
 	def __init__(self, qubits):
 		self.qubits = qubits
@@ -33,14 +73,14 @@ class VC:
 
 	""" methed used by all classification circuits. weights passed to method (W) 
 		are used to make prediction / classification for bit string passed to method (x). """
-	def classify(W, x):
+	def classify(self, W, x):
 
 		# reshape weights into arrays representing unitary weights for
 		# each layer of classification circuit, and circuit bias
-		w, b = reweigh(W)
+		w, b = self.reweight(W)
 
 		# make prediction, return to method
-		return predict (w, x) + b
+		return self.predict (w, x) + b
 
 	## VC circuit architecture methods
 
@@ -66,7 +106,7 @@ class VC:
 
 	""" method used to reshape list of unitary weights into array containing
 		weights for each layer, and bias used to shift prediction. """
-	def reweight(W):
+	def reweight(self, W):
 		# get the layer weights and bias for circuit
 		b = W[-1] # bias is last element in list
 		w = W[:-1].reshape(l, n, 3) # remove bias, reshape according to number of layers
@@ -76,11 +116,17 @@ class VC:
 	""" quantum variational circuit function that predicts the classification of 
 		input information x according the function operations specified by the 
 		unitary weights for each circuit layer. """
-	def predict (w, x):
+	def predict (self, w, x):
 		
 		# initialize qubit state
+		if self.QFT_status ==  True:
+			print (f"TODO :: implement QFT embedding.")
+		else:
+			# default is embed bit string as computational basis
+			state = qubit_encoding(x)
 
-		# TODO :: apply QFT to circuit
+		print (x)
+		exit()
 
 		# apply circuit layers to quantum state
 
