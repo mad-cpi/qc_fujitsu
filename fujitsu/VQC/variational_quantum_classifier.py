@@ -29,9 +29,21 @@ default_VQC_circuit = 'VC'
 # default thresholding status
 default_threshold_status = False
 
-# defauly thresholding amount, if none is specified
+# default thresholding amount, if none is specified
 # when thresholding is turned on
-default_threshold = 0.02
+default_threshold_increase_size = 0.02
+
+# default initial threshold, uased when threshold is off or
+# has just been turned on
+default_initial_threshold = 0.02
+
+# default number of iterations that the threshold is increase
+default_threshold_increase_step = 50
+
+# maximum threshold, after which the threshold will not increase any more
+# if thresholding is off, this is the constant value used for thresholding
+# calssifications from the quantum circuit
+default_threshold_max = 0.15
 
 # default batching status
 default_batch_status = False
@@ -56,8 +68,49 @@ default_fp_radius = 3
 
 ## TODO :: add VQC exception
 
+## VQC OPTIMIZATION METHODS ##
 
-## VQC CLASS AND METHODS ##
+""" method used to optimize the current weights of a variational circuit according
+	to the dataset sotored within the variational classification circuit
+	object. """
+def optimize(vqc):
+
+	# initialize the iteration count for the circuit
+	vqc.initialize_optimization_iterations()
+
+	# optimize the weights associated with the circuit
+	opt = minimize (vqc.cost_function, vqc.W, method = 'Powell', bounds = vqc.B)
+
+	# assign the optimal weights to the classification circuit
+	vqc.W = opt.x
+	print("\nFinal value of error function after optimization: {:0.3f}.".format(opt.fun))
+
+	# TODO :: save weights!!
+
+
+""" method used to define the error associated with a set of circuit weights,
+	calculated by find the norm between a set of predict classifications and
+	their real values."""
+def error (predictions):
+	# tolerance used to measure if a prediction is correct
+	tol = 5e-2
+	# initialize loss, accuracy measurements
+	loss = 0.
+	accuracy = 0
+	# compare all labels and predictions
+	for p in predictions:
+		# print("CLASS : {:0.5f}, PRED : {:0.5f}".format(l, p))
+		loss = loss + (p[0] - p[1]) ** 2
+		if abs(p[0] - p[1]) < tol:
+			accuracy = accuracy + 1
+	# normalize loss, accuracy by the data size
+	loss = loss / len(predictions)
+	accuracy = accuracy / len(predictions)
+	return loss, accuracy
+
+
+
+## VQC CLASS METHODS ##
 # variational quantum classifier 
 class VQC:
 	""" initialization routine for VQC object. """
@@ -73,6 +126,7 @@ class VQC:
 		# initialize hyperparameters as off
 		self.thresholding_status = default_threshold_status
 		self.batch_status = default_batch_status
+		self.n_it = 0
 
 		# initialize X and Y data sets as empty
 		self.X = None
@@ -97,6 +151,12 @@ class VQC:
 			print(f" Error assigning qubits. Number passed to method outside of the allowable range.")
 			print(f" Q ({qubits}) is outside of Q_MIN ({min_qubits}) and Q_MAX ({max_qubits}).")
 			exit()
+
+	""" method used to the set the number used to enumerate the number
+		of times that a circuit has been optimized to zero """
+	def initialize_optimization_iterations(self):
+		# set the counter to zero
+		self.n_it = 0
 
 	""" method used to load smile strings and activity classifications
 		from csv file. """
@@ -148,7 +208,6 @@ class VQC:
 			for i in range(len(self.Y)):
 				print("X = {}, Y = {:.2f}".format(self.X[i], self.Y[i]))
 
-
 	""" method used to initialize the VQC circuit architecture, unitary weights. """
 	def initialize_circuit(self, circuit = None, QFT = False, bit_correlation = False):
 
@@ -174,7 +233,7 @@ class VQC:
 		if self.thresholding_status:
 			print ("TODO :: implement thresholding.")
 		else:
-			t = 0.99
+			t = default_threshold_max
 
 		# if batching is turned on
 		if self.batch_status:
@@ -195,32 +254,22 @@ class VQC:
 
 			# make a prediction
 			y = self.circuit.classify(W, x)
-
-			if self.thresholding_status:
-				print ("TODO :: implement thresholding.")
+			if abs(y) > t:
+				y = np.sign(y)
 
 			# add the prediction and its known value to the list
-			Y_pred.append([y, Y[i]])
+			Y_pred.append([y, self.Y[i]])
 
 
 		# calculate the cost and accuracy of the weights
 		cost, acc = error(Y_pred)
+		self.n_it += 1
+		# report the status of the model predictions to the user
+		print("Iteration: {:5d} | Cost: {:0.5f} | Accuracy : {:0.5f}"\
+			.format(self.n_it, cost, acc))
 
 		# return the value to the user
 		return cost
-
-	""" method used to optimize the current weights of a variational circuit according
-		to the dataset sotored within the variational classification circuit
-		object. """
-	def optimize(self):
-
-		opt = minimize (self.cost_function, self.W, method = 'Powell', bounds = self.B)
-
-		# assign the optimal weights to the classification circuit
-		self.W = opt.x
-		print("\nFinal value of error function after optimization: {:0.3f}.".format(opt.fun))
-
-		# TODO :: save weights!!
 
 	""" initialize batching protcol for optimization """
 	def set_batching(self, status, batch_size = None):
@@ -243,24 +292,69 @@ class VQC:
 					self.batch_size = default_batch_size
 
 	""" initialize tresholding protocol for optimization routine """
-	def set_threshold(self, status, threshold = None):
+	def set_threshold(self, status, threshold_initial = None, threshold_increase_size = None, threshold_increase_freq = None, verbose = True):
 
 		if status == True:
 			# turn on the tresholding routine
 			self.thresholding_status = True
 
+			# assign the thresholding parameters
 			# if the threshold was no passed to the method
-			if threshold == None:
+			if threshold_initial == None:
 				# assign the default value
-				self.threshold = default_threshold
+				self.threshold = default_initial_threshold
 			else:
 				# check that the value passed to the method is correct
-				if threshold > 0. and threshold < 1.:
+				if threshold_intial > 0. and threshold_initial < 1.:
 					# if the value is between one and zero
-					self.threshold = threshold
+					self.threshold = threshold_initial
 				else:
 					# assign the default
-					threshold = default_threshold
+					self.threshold = default_initial_threshold
+
+			# assign the thresholding increase size
+			if threshold_increase_size == None:
+				# if no value was passed to the method
+				# assign the default
+				self.threshold_increase_size = default_threshold_increase_size
+			else:
+				# if a value for the threshold increase size was passed to the method
+				# check that the value is okay
+				if threshold_increase_size > 0. and threshold_increase_size < 0.1:
+					# assign the value
+					self.threshold_increase_size = threshold_increase_size
+				else:
+					# if the value is outside of the allowable range
+					# assign the default
+					self.threshold_increase_size = default_threshold_increase_size
+
+			# assign the thresholding increase frequency
+			if threshold_increase_freq == None:
+				# if no value was passed to the method, assign the default
+				self.threshold_increase_freq = default_threshold_increase_step
+			else:
+				# if a value was passed to the method, check that the value meets the constrains
+				if threshold_increase_freq > 0:
+					# assign the value
+					self.threshold_increase_freq = threshold_increase_freq
+				else:
+					# if the value did not meet the constrains, assign the default
+					self.threshold_increase_freq = default_threshold_increase_step
+
+			# report to user
+			if verbose:
+				print(f"\nVQC optimization thresholding turned on.")
+				print("Initial Threshold :: {:5.3f}".format(self.threshold))
+				print("Threshold Increase Frequency :: {:03d} iterations".format(self.threshold_increase_freq))
+				print("Threshold Increase Size :: {5.3}".format(self.threshold_increase_size))
+
+		else:
+			self.thresholding_status = False 
+
+			if verbose:
+				print(f"\nVQC optimization thresholding turned off.")
+				print("Threshold will remain constant at {:5.3}".format(default_threshold_max))
+
 
 	""" method used to write bit strings and classification to external file."""
 	def write_data (self, path):

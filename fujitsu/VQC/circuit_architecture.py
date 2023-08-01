@@ -2,7 +2,8 @@ import sys, os
 import math
 import pandas as pd
 import numpy as np
-from qulacs import QuantumState, QuantumCircuit
+from qulacs import QuantumState, QuantumCircuit, Observable
+from qulacs.gate import RX, RY, RZ, CNOT
 
 ## PARAMETERS ## 
 # upper boundary of each universal unitary operation
@@ -57,8 +58,12 @@ def qubit_encoding (x):
 class VC:
 	def __init__(self, qubits):
 		self.qubits = qubits
+		# TODO :: parameterize the layers
 		self.layers = 2
 		self.set_QFT_status()
+		# TODO :: parameterize the observable 
+		self.obs = Observable(qubits)
+		self.obs.add_operator(1, 'Z 0')
 
 	## generic circuit architecture circuit methods
 
@@ -125,12 +130,57 @@ class VC:
 			# default is embed bit string as computational basis
 			state = qubit_encoding(x)
 
-		print (x)
-		exit()
 
 		# apply circuit layers to quantum state
+		for i in range(self.layers):
+			# generate a quantum circuit with the specified weights
+			c = self.layer(w[i])
+			# apply circuit, update quantum state
+			c.update_quantum_state(state)
 
 		# measure the expectation value of the circuit
+		return self.obs.get_expectation_value(state)
+
+	""" build circuit that based on weights passed to method. """
+	def layer(self, w):
+		# initialize circuit
+		n = self.qubits
+		circuit = QuantumCircuit(n)
+
+		# for each wire
+		for i in range(n):
+			# apply each R gate
+			for j in range(3):
+				if j == 0:
+					# if j == 0, apply RX gate to wire n
+					gate = RX (i, w[i][j])
+				elif j == 1:
+					# if j == 1, aply RY gate to wire n
+					gate = RY (i, w[i][j])
+				elif j == 2:
+					# if j == 2, apply RZ gate to write n
+					gate = RZ (i, w[i][j])
+
+				# add gate to circuit
+				circuit.add_gate(gate)
+
+		# for each wire
+		for i in range(n):
+			# in the schulgin data set, the first 5 features
+			# in the 16 bit fingerprint are all the same for the 
+			# entire dataset, so do not apply control bits to those features
+			if i >= 5 or i == (n-1):
+				# target bit
+				j = i + 1 
+				# periodic wrap at boundaries
+				if j >= n:
+					j = 0
+				# apply control bit to target bit
+				gate = CNOT (i, j)
+				# add to circuit
+				circuit.add_gate(gate)
+
+		return circuit
 
 
 
