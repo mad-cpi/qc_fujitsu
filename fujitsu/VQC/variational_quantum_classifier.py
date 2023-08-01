@@ -235,6 +235,8 @@ class VQC:
 		else:
 			t = default_threshold_max
 
+		exit()
+
 		# if batching is turned on
 		if self.batch_status:
 			# generate a random list of X and Y
@@ -292,7 +294,7 @@ class VQC:
 					self.batch_size = default_batch_size
 
 	""" initialize tresholding protocol for optimization routine """
-	def set_threshold(self, status, threshold_initial = None, threshold_increase_size = None, threshold_increase_freq = None, verbose = True):
+	def set_threshold(self, status, threshold_initial = None, threshold_increase_size = None, threshold_increase_freq = None, threshold_max = None, verbose = True):
 
 		if status == True:
 			# turn on the tresholding routine
@@ -305,7 +307,7 @@ class VQC:
 				self.threshold = default_initial_threshold
 			else:
 				# check that the value passed to the method is correct
-				if threshold_intial > 0. and threshold_initial < 1.:
+				if threshold_initial > 0. and threshold_initial < 1.:
 					# if the value is between one and zero
 					self.threshold = threshold_initial
 				else:
@@ -341,12 +343,30 @@ class VQC:
 					# if the value did not meet the constrains, assign the default
 					self.threshold_increase_freq = default_threshold_increase_step
 
+			# assign the maximum threshold for the method
+			if threshold_max == None:
+				# if a value has not been passed to the method,
+				# assign the default
+				self.threshold_max = default_threshold_max
+			else:
+				# if a value has been passed to the method,
+				# check that is meets the contrains
+				if threshold_max > 0. and threshold_max < 1.0:
+					# the value meets the contrains, 
+					# assign the max threshold value
+					self.threshold_max = threshold_max 
+				else:
+					# the value does not meet the criteria
+					# assign the default
+					self.threshold_max = default_threshold_max
+
 			# report to user
 			if verbose:
 				print(f"\nVQC optimization thresholding turned on.")
 				print("Initial Threshold :: {:5.3f}".format(self.threshold))
 				print("Threshold Increase Frequency :: {:03d} iterations".format(self.threshold_increase_freq))
-				print("Threshold Increase Size :: {5.3}".format(self.threshold_increase_size))
+				print("Threshold Increase Size :: {:5.3f}".format(self.threshold_increase_size))
+				print("Maximum Threshold :: {:5.3f}".format(self.threshold_max))
 
 		else:
 			self.thresholding_status = False 
