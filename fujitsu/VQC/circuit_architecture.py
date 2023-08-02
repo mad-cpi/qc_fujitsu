@@ -211,3 +211,28 @@ class VariationalClassifier(ClassificationCircuit):
 
 
 
+
+
+class TreeTensorNetwork(ClassificationCircuit):
+
+	""" intialize weights of classification circuit according to the TTN circuit
+		architecture. """
+	def initial_weights(self):
+		pass 
+
+	""" method that reshapes list of unitary weights into an array that is organized
+		by the operations that are performed for each layer of the classification circuit. """
+	def reweight(self, W):
+		pass
+
+	""" function that uses a list of refactored weights to perform a series of unitary operations
+		the predict the classification of an object as either 0 or 1 """
+	def predict (self, w, x):
+		pass
+
+	""" builds circuit that corresponds to a series of unitary operations, which is used to update
+		the quantum state passed through the classification circuit ."""
+	def predict (self, w):
+		pass
+
+	
