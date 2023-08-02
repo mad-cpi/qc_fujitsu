@@ -301,7 +301,7 @@ class VQC:
 
 			if verbose:
 				print(f"\nVQC optimization batching was turned on.")
-				print("Batch size :: {:4.2f}".format(self.batch_size))
+				print("Batch size :: {:4.2f} precent of training set".format(self.batch_size))
 
 	""" initialize tresholding protocol for optimization routine """
 	def set_threshold(self, status, threshold_initial = None, threshold_increase_size = None, threshold_increase_freq = None, threshold_max = None, verbose = True):

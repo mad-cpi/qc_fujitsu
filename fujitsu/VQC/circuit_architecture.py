@@ -18,7 +18,7 @@ lower_unitary_boundary = -2. * math.pi
 # default QFT status, determine if QFT is applied to
 # quantum state in computational basis before applying
 # variational circuit layers / uinitary transormations
-default_QFT_status = True
+default_QFT_status = False
 
 ## METHODS UTILIZEDS BY CIRCUIT ARCHITECTURE ##
 
@@ -114,8 +114,22 @@ class ClassificationCircuit (ABC):
 		b = Wb[-1]
 		W = Wb[:-1]
 
-		# make prediction, return to method
-		return self.predict (W, x) + b
+		# initialize qubit state
+		if self.QFT_status ==  True:
+			print (f"TODO :: implement QFT embedding.")
+		else:
+			# default is embed bit string as computational basis
+			state = qubit_encoding(x)
+
+		# apply circuit layers to quantum state
+		for i in range(self.layers):
+			# generate a quantum circuit with the specified weights
+			c = self.layer(W, i)
+			# apply circuit, update quantum state
+			c.update_quantum_state(state)
+
+		# make prediction based on expectation value, return to user
+		return self.obs.get_expectation_value(state) + b
 
 	""" method that sets the number of layers in the circuit, which is unique
 		depending on the circuit architecture. """
@@ -134,10 +148,11 @@ class ClassificationCircuit (ABC):
 	def get_layer_weights(self, W, i):
 		pass
 
-	""" method used by circuit to make predictions with weights """
+	""" method that returns the wires that should be operated on by the 
+		circuit layer corresponding to i """
 	@abstractmethod
-	def predict (self, W, x):
-		pass 
+	def get_layer_qubits(self, i):
+		pass
 
 	""" method that describes the circuit applied to quantum circuit
 		which contains operations for single layer of classification circuit """
@@ -172,31 +187,15 @@ class VariationalClassifier(ClassificationCircuit):
 	def get_layer_weights(self, W, i):
 
 		# reshape list containing layer weights
-		w = W[:-1].reshape(self.layers, self.qubits, 3) # remove bias, reshape according to number of layers
+		w = W.reshape(self.layers, self.qubits, 3) # remove bias, reshape according to number of layers
 		# return the weights corresponding to the layer to the user
 		return w[i]
 
-	""" quantum variational circuit function that predicts the classification of 
-		input information x according the function operations specified by the 
-		unitary weights for each circuit layer. """
-	def predict (self, W, x):
-		
-		# initialize qubit state
-		if self.QFT_status ==  True:
-			print (f"TODO :: implement QFT embedding.")
-		else:
-			# default is embed bit string as computational basis
-			state = qubit_encoding(x)
-
-		# apply circuit layers to quantum state
-		for i in range(self.layers):
-			# generate a quantum circuit with the specified weights
-			c = self.layer(W, i)
-			# apply circuit, update quantum state
-			c.update_quantum_state(state)
-
-		# measure the expectation value of the circuit
-		return self.obs.get_expectation_value(state)
+	""" get qubits that are operated on by layer of variational classification
+		circuit, which for this architecture is all qubits. """
+	def get_layer_qubits (self, i):
+		q = [x for x in range(self.qubits)]
+		return q
 
 	""" build circuit that based on weights passed to method. """
 	def layer(self, W, i):
@@ -208,18 +207,18 @@ class VariationalClassifier(ClassificationCircuit):
 		w = self.get_layer_weights(W, i)
 
 		# for each wire
-		for i in range(n):
+		for j in range(n):
 			# apply each R gate
-			for j in range(3):
-				if j == 0:
+			for k in range(3):
+				if k == 0:
 					# if j == 0, apply RX gate to wire n
-					gate = RX (i, w[i][j])
-				elif j == 1:
+					gate = RX (i, w[j][k])
+				elif k == 1:
 					# if j == 1, aply RY gate to wire n
-					gate = RY (i, w[i][j])
-				elif j == 2:
+					gate = RY (i, w[j][k])
+				elif k == 2:
 					# if j == 2, apply RZ gate to write n
-					gate = RZ (i, w[i][j])
+					gate = RZ (i, w[j][k])
 
 				# add gate to circuit
 				circuit.add_gate(gate)
@@ -241,7 +240,6 @@ class VariationalClassifier(ClassificationCircuit):
 				circuit.add_gate(gate)
 
 		return circuit
-
 
 
 class TreeTensorNetwork(ClassificationCircuit):
@@ -325,13 +323,58 @@ class TreeTensorNetwork(ClassificationCircuit):
 		# return the layer corresponding to i to the user
 		return w
 
-	""" function that uses a list of refactored weights to perform a series of unitary operations
-		the predict the classification of an object as either 0 or 1 """
-	def predict (self, w, x):
-		return 0
-
 	""" builds circuit that corresponds to a series of unitary operations, which is used to update
 		the quantum state passed through the classification circuit ."""
-	def predict (self, w):
-		pass
+	def layer (self, W, i):
+
+		w = self.get_layer_weights(W, i)
+		q = self.get_layer_qubits(i)
+
+		# NOTE :: len(q) and len(W) should be equal
+		if len(w) != len(q):
+			print(f"Length of TTN layer weights ({len(w)}) and layer qubits ({len(q)}) are not equal.")
+			exit()
+
+		# initialize circuit for n qubits
+		circuit = QuantumCircuit(self.qubits)
+
+		# apply unitary operations for each wire in q
+		for j in range(len(q)):
+			# apply each R gate
+			for k in range(3):
+				if k == 0:
+					# if j == 0, apply RX gate to wire n
+					gate = RX (q[j], w[j][k])
+				elif k == 1:
+					# if j == 1, aply RY gate to wire n
+					gate = RY (q[j], w[j][k])
+				elif k == 2:
+					# if j == 2, apply RZ gate to write n
+					gate = RZ (q[j], w[j][k])
+
+				# add gate to circuit
+				circuit.add_gate(gate)
+
+		# apply CNOT gates for each wire in q with its neighbor (in the list)
+		for j in range(0, int(len(q) / 2), 2):
+			gate = CNOT (q[j], q[j+1])
+			# add gate to circuit
+			circuit.add_gate(gate)
+
+		return circuit
+
+	""" get layer qubits for TTN circut architecture """
+	def get_layer_qubits (self, i):
+
+		# initialize the list of wires that interact with one another
+		# start with list of all cubits
+		q = [x for x in range(self.qubits)]
+
+		if i > 0:
+			# if not the first layer
+			for l in range(i - 1):
+				# for each layer
+				# remove every other qubit from the list
+				for j in range(int(len(q) / 2)):
+					q.pop(j)	
 
