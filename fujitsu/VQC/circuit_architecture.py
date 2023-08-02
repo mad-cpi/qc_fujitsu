@@ -7,6 +7,10 @@ from qulacs.gate import RX, RY, RZ, CNOT
 from abc import abstractmethod, ABC
 
 ## PARAMETERS ## 
+# average of random numbers generation for initial unitary weights
+norm_avg = 0.
+# standard deviation of random numbers generated for initial unitary weights
+norm_std=0.1
 # upper boundary of each universal unitary operation
 upper_unitary_boundary = 2. * math.pi 
 # lower boundary of each universal unitary operation
@@ -54,6 +58,27 @@ def qubit_encoding (x):
 	c.update_quantum_state(s)
 	return s
 
+""" method that initializes unitatary weights randomly along a normal distrubution,
+	with boundaries that correspond to the upper and lower period boundaries of any
+	qubit rotation (last weight in list corresponds to the bias used to shift result
+	of classification circuit liniarly, which is used for all classification circuits). """
+def random_unitary_weights (n_weights, avg = norm_avg, std = norm_std):
+	# initialize weights randomly along a normal distribution
+	weights = np.random.normal(avg, std, size=n_weights)
+
+	# assign boundaries to each weight 
+	# (last weight in list correspond to linear shift, 
+	#	and is assigned different boundaries)
+	bounds = [] # bounds of weights
+	# initialized as N x 2 array
+	for i in range(len(weights)):
+		if i < (len(weights) - 1):
+			bounds.append((lower_unitary_boundary, upper_unitary_boundary))
+		else:
+			# the final value in the set is the bias applied to each circuit
+			bounds.append((-1, 1))
+
+	return weights, bounds
 
 """ TODO :: add method to quantifying qubit circuits (?? forgot what I meant by this) """
 
@@ -121,6 +146,10 @@ class ClassificationCircuit (ABC):
 
 class VariationalClassifier(ClassificationCircuit):
 
+	# implementation inspired by: 
+	# https://pennylane.ai/qml/demos/tutorial_variational_classifier
+	# Schuld, Maria, et al. "Circuit-centric quantum classifiers." Physical Review A 101.3 (2020): 032308.
+
 	""" set the number of layers for the variational classification
 		circuit """
 	def set_layers(self):
@@ -130,20 +159,10 @@ class VariationalClassifier(ClassificationCircuit):
 		to the circuit architecture, number of layers, qubits, etc. """
 	def initial_weights(self):
 
-		# create array of initial weights
-		W_init = np.random.normal(0., 0.1, size=(self.layers * self.qubits * 3 + 1)) 
+		# determine the number of weights that should be initialized for the circuit
+		n_weights = self.layers * self.qubits * 3 + 1
 
-		# create array out boundary values corresponding to each weight
-		bounds = [] # bounds of weights
-		# initialized as N x 2 array
-		for i in range(len(W_init)):
-			if i < (len(W_init) - 1):
-				bounds.append((lower_unitary_boundary, upper_unitary_boundary))
-			else:
-				# the final value in the set is the bias applied to each circuit
-				bounds.append((-1, 1))
-
-		return W_init, bounds
+		return random_unitary_weights(n_weights = n_weights)
 
 	""" method used to reshape list of unitary weights into array containing
 		weights for each layer, and bias used to shift prediction. """
@@ -226,6 +245,10 @@ class VariationalClassifier(ClassificationCircuit):
 
 class TreeTensorNetwork(ClassificationCircuit):
 
+	# implementation inspired by: 
+	# https://www.nature.com/articles/s41534-018-0116-9
+	# Grant, Edward, et al. "Hierarchical quantum classifiers." npj Quantum Information 4.1 (2018): 65.
+
 	""" set the number of layers for the TTN classification circuit,
 		which depends on the number of qubits in the circuit. """
 	def set_layers(self):
@@ -260,15 +283,24 @@ class TreeTensorNetwork(ClassificationCircuit):
 			print(f"\nError :: number of qubits ({self.qubit}) assigned to the circuit must by an integer of log2(N).")
 			exit()
 		elif (verbose):
-			print(f"\nThere are {layer} layers in the {n} qubit TNN classifier.\n")
+			print(f"\nThere are {layer} layers in the {self.qubit} qubit TNN classifier.\n")
 
-		# assign the layers
+		# assign the layers to the object
 		self.layers = layer
 
 	""" intialize weights of classification circuit according to the TTN circuit
 		architecture. """
 	def initial_weights(self):
-		pass 
+
+		# initialize the weights used for the unitary operations
+		# the number of weights depends on the number of layers in the circuit
+		# determine the number of weights
+		n_weights = 0
+		for l in range(self.layer):
+			n_weights += 3 * int(self.qubits / (2 ** l))
+
+		# initialize the weights randomly, return to user
+		return random_unitary_weights(n_weights = n_weights)
 
 	""" method that reshapes list of unitary weights into an array that is organized
 		by the operations that are performed for each layer of the classification circuit. """
