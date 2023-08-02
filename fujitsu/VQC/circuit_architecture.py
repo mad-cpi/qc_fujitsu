@@ -80,6 +80,8 @@ def random_unitary_weights (n_weights, avg = norm_avg, std = norm_std):
 
 	return weights, bounds
 
+""" TODO ::  add QFT_encoding. """
+
 """ TODO :: add method to quantifying qubit circuits (?? forgot what I meant by this) """
 
 
@@ -87,9 +89,8 @@ def random_unitary_weights (n_weights, avg = norm_avg, std = norm_std):
 class ClassificationCircuit (ABC):
 	def __init__(self, qubits):
 		self.qubits = qubits
-		self.set_layers() # number of layers depends on the
-		# circuit architecture
-		self.set_QFT_status()
+		self.set_layers() # number of layers depends on the circuit architecture
+		self.set_QFT_status() # initialize QFT operation, default is off
 		# TODO :: parameterize the observable 
 		self.obs = Observable(self.qubits)
 		self.obs.add_operator(1, 'Z 15')
@@ -107,14 +108,14 @@ class ClassificationCircuit (ABC):
 
 	""" methed used by all classification circuits. weights passed to method (W) 
 		are used to make prediction / classification for bit string passed to method (x). """
-	def classify(self, W, x):
+	def classify(self, Wb, x):
 
-		# reshape weights into arrays representing unitary weights for
-		# each layer of classification circuit, and circuit bias
-		w, b = self.reweight(W)
+		# remove bias from list of weights
+		b = Wb[-1]
+		W = Wb[:-1]
 
 		# make prediction, return to method
-		return self.predict (w, x) + b
+		return self.predict (W, x) + b
 
 	""" method that sets the number of layers in the circuit, which is unique
 		depending on the circuit architecture. """
@@ -127,21 +128,23 @@ class ClassificationCircuit (ABC):
 	def initial_weights(self):
 		pass
 
-	""" method used by circuit to reshape list of weights """
+	""" method returns the weights used for a certain circuit layer,
+		specified by i. """
 	@abstractmethod
-	def reweight(self, W):
+	def get_layer_weights(self, W, i):
 		pass
 
 	""" method used by circuit to make predictions with weights """
 	@abstractmethod
-	def predict (self, w, x):
+	def predict (self, W, x):
 		pass 
 
 	""" method that describes the circuit applied to quantum circuit
 		which contains operations for single layer of classification circuit """
 	@abstractmethod
-	def layer(self, w):
+	def layer(self, W, i):
 		pass
+
 
 
 class VariationalClassifier(ClassificationCircuit):
@@ -164,19 +167,19 @@ class VariationalClassifier(ClassificationCircuit):
 
 		return random_unitary_weights(n_weights = n_weights)
 
-	""" method used to reshape list of unitary weights into array containing
-		weights for each layer, and bias used to shift prediction. """
-	def reweight(self, W):
-		# get the layer weights and bias for circuit
-		b = W[-1] # bias is last element in list
+	""" given a list of weights for the entire circuit, returns an array of weights
+		corresponding to the circuit layer specified by i"""
+	def get_layer_weights(self, W, i):
+
+		# reshape list containing layer weights
 		w = W[:-1].reshape(self.layers, self.qubits, 3) # remove bias, reshape according to number of layers
-		# return to user
-		return w, b
+		# return the weights corresponding to the layer to the user
+		return w[i]
 
 	""" quantum variational circuit function that predicts the classification of 
 		input information x according the function operations specified by the 
 		unitary weights for each circuit layer. """
-	def predict (self, w, x):
+	def predict (self, W, x):
 		
 		# initialize qubit state
 		if self.QFT_status ==  True:
@@ -185,11 +188,10 @@ class VariationalClassifier(ClassificationCircuit):
 			# default is embed bit string as computational basis
 			state = qubit_encoding(x)
 
-
 		# apply circuit layers to quantum state
 		for i in range(self.layers):
 			# generate a quantum circuit with the specified weights
-			c = self.layer(w[i])
+			c = self.layer(W, i)
 			# apply circuit, update quantum state
 			c.update_quantum_state(state)
 
@@ -197,10 +199,13 @@ class VariationalClassifier(ClassificationCircuit):
 		return self.obs.get_expectation_value(state)
 
 	""" build circuit that based on weights passed to method. """
-	def layer(self, w):
+	def layer(self, W, i):
 		# initialize circuit
 		n = self.qubits
 		circuit = QuantumCircuit(n)
+
+		# get the circuit weights from the list
+		w = self.get_layer_weights(W, i)
 
 		# for each wire
 		for i in range(n):
@@ -236,10 +241,6 @@ class VariationalClassifier(ClassificationCircuit):
 				circuit.add_gate(gate)
 
 		return circuit
-
-
-
-
 
 
 
@@ -304,8 +305,25 @@ class TreeTensorNetwork(ClassificationCircuit):
 
 	""" method that reshapes list of unitary weights into an array that is organized
 		by the operations that are performed for each layer of the classification circuit. """
-	def reweight(self, W):
-		pass
+	def get_layer_weights(self, W, i):	
+
+		w = np.zeros((1))
+		# initialize index lower boundary for weights in list
+		lw = 0
+		# loop through all layers until at final layer
+		for j in range(i):
+			# determine the number of weights that correspond to the layer
+			n_weights = int(self.qubits / (2 ** (j)))
+			# set the index corresponding to the upper layer of the weight
+			up = lw + 3 * n_weights
+			# reshape the list indicies corresponding the layer to a 3 x N array
+			w = W[lw:up].reshape(n_weights, 3)
+			# assign the lower boundary for the next layer as the upper boundary
+			# for the current layer
+			lw = up
+
+		# return the layer corresponding to i to the user
+		return w
 
 	""" function that uses a list of refactored weights to perform a series of unitary operations
 		the predict the classification of an object as either 0 or 1 """
