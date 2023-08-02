@@ -7,7 +7,7 @@ from rdkit import Chem
 from rdkit.Chem import AllChem, rdFingerprintGenerator
 from scipy.optimize import minimize
 # VQC circuit architectures
-from fujitsu.VQC.circuit_architecture import VC
+from fujitsu.VQC.circuit_architecture import VariationalClassifier
 
 ## PARAMETERS ## 
 
@@ -75,6 +75,8 @@ default_fp_radius = 3
 	object. """
 def optimize(vqc):
 
+	print(f"\nOptimizing VQC circuit ..")
+
 	# initialize the iteration count for the circuit
 	vqc.initialize_optimization_iterations()
 
@@ -124,8 +126,8 @@ class VQC:
 		self.circuit = None
 
 		# initialize hyperparameters as off
-		self.thresholding_status = default_threshold_status
-		self.batch_status = default_batch_status
+		self.set_threshold(status = default_threshold_status, verbose = False)
+		self.set_batching(status = default_batch_status, verbose = False)
 		self.n_it = 0
 
 		# initialize X and Y data sets as empty
@@ -215,11 +217,11 @@ class VQC:
 
 		# initialize the circuit architecture
 		if circuit == None:
-			self.circuit = VC(self.qubits)
+			self.circuit = VariationalClassifier(self.qubits)
 		else:
 			# TODO check that architecture is in 
 			# list of acceptable archite
-			self.circuit = VC(self.qubits)
+			self.circuit = VariationalClassifier(self.qubits)
 
 		# initialize unitary weights and their upper and lower bounds
 		# according to the number of qubits and circuit architecture
@@ -231,11 +233,15 @@ class VQC:
 
 		# if thresholding is turned on, establish the threshold
 		if self.thresholding_status:
-			print ("TODO :: implement thresholding.")
-		else:
-			t = default_threshold_max
+			if (self.n_it % self.threshold_increase_freq == 0 ) and (self.n_it != 0):
+				print(f"Threshold increased from {self.threshold} to {(self.threshold + self.threshold_increase_size)}.")
+				self.threshold += self.threshold_increase_size
 
-		exit()
+			if self.threshold > self.threshold_max:
+				self.threshold = self.threshold_max
+				print(f"Threshold set to maximum ({self.threshold})")
+		else:
+			self.threshold = default_threshold_max
 
 		# if batching is turned on
 		if self.batch_status:
@@ -256,7 +262,7 @@ class VQC:
 
 			# make a prediction
 			y = self.circuit.classify(W, x)
-			if abs(y) > t:
+			if abs(y) > self.threshold:
 				y = np.sign(y)
 
 			# add the prediction and its known value to the list
@@ -274,7 +280,7 @@ class VQC:
 		return cost
 
 	""" initialize batching protcol for optimization """
-	def set_batching(self, status, batch_size = None):
+	def set_batching(self, status, batch_size = None, verbose = True):
 
 		if status == True:
 			# turn on the batching routine
@@ -292,6 +298,10 @@ class VQC:
 				else:
 					# assign the default value
 					self.batch_size = default_batch_size
+
+			if verbose:
+				print(f"\nVQC optimization batching was turned on.")
+				print("Batch size :: {:4.2f}".format(self.batch_size))
 
 	""" initialize tresholding protocol for optimization routine """
 	def set_threshold(self, status, threshold_initial = None, threshold_increase_size = None, threshold_increase_freq = None, threshold_max = None, verbose = True):

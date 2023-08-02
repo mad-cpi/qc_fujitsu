@@ -427,15 +427,15 @@ def layer (w):
 		# in the schulgin data set, the first 5 features
 		# in the 16 bit fingerprint are all the same for the 
 		# entire dataset, so do not apply control bits to those features
-		# if i >= 5 or i == (n-1):
-		# target bit
-		j = i + 1 
-		if j >= n:
-			j = 0
-		# apply control bit to target bit
-		gate = CNOT (i, j)
-		# add to circuit
-		circuit.add_gate(gate)
+		if i >= 5 or i == (n-1):
+			# target bit
+			j = i + 1 
+			if j >= n:
+				j = 0
+			# apply control bit to target bit
+			gate = CNOT (i, j)
+			# add to circuit
+			circuit.add_gate(gate)
 
 	return circuit
 

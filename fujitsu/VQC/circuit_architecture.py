@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 from qulacs import QuantumState, QuantumCircuit, Observable
 from qulacs.gate import RX, RY, RZ, CNOT
+from abc import abstractmethod, ABC
 
 ## PARAMETERS ## 
 # upper boundary of each universal unitary operation
@@ -54,8 +55,11 @@ def qubit_encoding (x):
 	return s
 
 
+""" TODO :: add method to quantifying qubit circuits """
+
+
 ## CIRCUIT ARCHITECTURE CLASS METHODS ## 
-class VC:
+class ClassificationCircuit (ABC):
 	def __init__(self, qubits):
 		self.qubits = qubits
 		# TODO :: parameterize the layers
@@ -63,7 +67,7 @@ class VC:
 		self.set_QFT_status()
 		# TODO :: parameterize the observable 
 		self.obs = Observable(qubits)
-		self.obs.add_operator(1, 'Z 0')
+		self.obs.add_operator(1, 'Z 11')
 
 	## generic circuit architecture circuit methods
 
@@ -87,7 +91,29 @@ class VC:
 		# make prediction, return to method
 		return self.predict (w, x) + b
 
-	## VC circuit architecture methods ## 
+	""" method used by circuit initialize weights of unitary operations """
+	@abstractmethod
+	def initial_weights(self):
+		pass
+
+	""" method used by circuit to reshape list of weights """
+	@abstractmethod
+	def reweight(self, W):
+		pass
+
+	""" method used by circuit to make predictions with weights """
+	@abstractmethod
+	def predict (self, w, x):
+		pass 
+
+	""" method that describes the circuit applied to quantum circuit
+		which contains operations for single layer of classification circuit """
+	@abstractmethod
+	def layer(self, w):
+		pass
+
+
+class VariationalClassifier(ClassificationCircuit):
 
 	""" method that initializes the weights of a circuit according
 		to the circuit architecture, number of layers, qubits, etc. """
@@ -104,8 +130,7 @@ class VC:
 				bounds.append((lower_unitary_boundary, upper_unitary_boundary))
 			else:
 				# the final value in the set is the bias applied to each circuit
-				# no bounds on linear shift
-				bounds.append((None, None))
+				bounds.append((-1, 1))
 
 		return W_init, bounds
 
