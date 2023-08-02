@@ -55,19 +55,19 @@ def qubit_encoding (x):
 	return s
 
 
-""" TODO :: add method to quantifying qubit circuits """
+""" TODO :: add method to quantifying qubit circuits (?? forgot what I meant by this) """
 
 
 ## CIRCUIT ARCHITECTURE CLASS METHODS ## 
 class ClassificationCircuit (ABC):
 	def __init__(self, qubits):
 		self.qubits = qubits
-		# TODO :: parameterize the layers
-		self.layers = 2
+		self.set_layers() # number of layers depends on the
+		# circuit architecture
 		self.set_QFT_status()
 		# TODO :: parameterize the observable 
-		self.obs = Observable(qubits)
-		self.obs.add_operator(1, 'Z 11')
+		self.obs = Observable(self.qubits)
+		self.obs.add_operator(1, 'Z 15')
 
 	## generic circuit architecture circuit methods
 
@@ -90,6 +90,12 @@ class ClassificationCircuit (ABC):
 
 		# make prediction, return to method
 		return self.predict (w, x) + b
+
+	""" method that sets the number of layers in the circuit, which is unique
+		depending on the circuit architecture. """
+	@abstractmethod
+	def set_layers(self):
+		pass
 
 	""" method used by circuit initialize weights of unitary operations """
 	@abstractmethod
@@ -114,6 +120,11 @@ class ClassificationCircuit (ABC):
 
 
 class VariationalClassifier(ClassificationCircuit):
+
+	""" set the number of layers for the variational classification
+		circuit """
+	def set_layers(self):
+		self.layers = 2
 
 	""" method that initializes the weights of a circuit according
 		to the circuit architecture, number of layers, qubits, etc. """
@@ -215,6 +226,45 @@ class VariationalClassifier(ClassificationCircuit):
 
 class TreeTensorNetwork(ClassificationCircuit):
 
+	""" set the number of layers for the TTN classification circuit,
+		which depends on the number of qubits in the circuit. """
+	def set_layers(self):
+
+		# check the number of qubits that should be 
+		# input used into the quantum circuit
+		n = self.qubits
+		fact = 2
+		layer = 1
+		is_valid = False
+		if (n != 0):
+			# the number of qubits must be non-zero
+			# check that n is an exact factor of two
+			while True:
+				if n == fact: 
+					# the number is exactly factorable by two
+					is_valid = True
+					break
+				elif (fact < n):
+					# continue to increase factor by two 
+					fact = fact * 2
+					layer += 1
+				else:
+					# i is greater than n,
+					# and therefore not an exact factor of 2
+					is_valid = False
+					break
+
+
+		# check that the number of qubits assligned to the circuit is correct
+		if (not is_valid):
+			print(f"\nError :: number of qubits ({self.qubit}) assigned to the circuit must by an integer of log2(N).")
+			exit()
+		elif (verbose):
+			print(f"\nThere are {layer} layers in the {n} qubit TNN classifier.\n")
+
+		# assign the layers
+		self.layers = layer
+
 	""" intialize weights of classification circuit according to the TTN circuit
 		architecture. """
 	def initial_weights(self):
@@ -228,11 +278,10 @@ class TreeTensorNetwork(ClassificationCircuit):
 	""" function that uses a list of refactored weights to perform a series of unitary operations
 		the predict the classification of an object as either 0 or 1 """
 	def predict (self, w, x):
-		pass
+		return 0
 
 	""" builds circuit that corresponds to a series of unitary operations, which is used to update
 		the quantum state passed through the classification circuit ."""
 	def predict (self, w):
 		pass
 
-	
