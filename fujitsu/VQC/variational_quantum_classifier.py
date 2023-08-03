@@ -7,7 +7,7 @@ from rdkit import Chem
 from rdkit.Chem import AllChem, rdFingerprintGenerator
 from scipy.optimize import minimize
 # VQC circuit architectures
-from fujitsu.VQC.circuit_architecture import VariationalClassifier
+from fujitsu.VQC.circuit_architecture import VariationalClassifier, TreeTensorNetwork
 
 ## PARAMETERS ## 
 
@@ -43,7 +43,7 @@ default_threshold_increase_step = 50
 # maximum threshold, after which the threshold will not increase any more
 # if thresholding is off, this is the constant value used for thresholding
 # calssifications from the quantum circuit
-default_threshold_max = 0.15
+default_threshold_max = 0.10
 
 # default batching status
 default_batch_status = False
@@ -216,12 +216,13 @@ class VQC:
 		## TODO :: prevent this method for being called if there is no data associated with the object
 
 		# initialize the circuit architecture
-		if circuit == None:
+		if circuit == 'VC':
 			self.circuit = VariationalClassifier(self.qubits)
+		elif circuit == 'TTN':
+			self.circuit = TreeTensorNetwork(self.qubits)
 		else:
-			# TODO check that architecture is in 
-			# list of acceptable archite
-			self.circuit = VariationalClassifier(self.qubits)
+			print(f"ERROR :: {circuit} circuit architecture not implemented yet.")
+			exit()
 
 		# initialize unitary weights and their upper and lower bounds
 		# according to the number of qubits and circuit architecture
@@ -302,6 +303,8 @@ class VQC:
 			if verbose:
 				print(f"\nVQC optimization batching was turned on.")
 				print("Batch size :: {:4.2f} precent of training set".format(self.batch_size))
+		else:
+			self.batch_status = False
 
 	""" initialize tresholding protocol for optimization routine """
 	def set_threshold(self, status, threshold_initial = None, threshold_increase_size = None, threshold_increase_freq = None, threshold_max = None, verbose = True):
@@ -384,7 +387,6 @@ class VQC:
 			if verbose:
 				print(f"\nVQC optimization thresholding turned off.")
 				print("Threshold will remain constant at {:5.3}".format(default_threshold_max))
-
 
 	""" method used to write bit strings and classification to external file."""
 	def write_data (self, path):

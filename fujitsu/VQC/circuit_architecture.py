@@ -10,7 +10,7 @@ from abc import abstractmethod, ABC
 # average of random numbers generation for initial unitary weights
 norm_avg = 0.
 # standard deviation of random numbers generated for initial unitary weights
-norm_std=0.1
+norm_std = 0.5
 # upper boundary of each universal unitary operation
 upper_unitary_boundary = 2. * math.pi 
 # lower boundary of each universal unitary operation
@@ -90,10 +90,8 @@ class ClassificationCircuit (ABC):
 	def __init__(self, qubits):
 		self.qubits = qubits
 		self.set_layers() # number of layers depends on the circuit architecture
+		self.set_observable()
 		self.set_QFT_status() # initialize QFT operation, default is off
-		# TODO :: parameterize the observable 
-		self.obs = Observable(self.qubits)
-		self.obs.add_operator(1, 'Z 15')
 
 	## generic circuit architecture circuit methods
 
@@ -137,6 +135,12 @@ class ClassificationCircuit (ABC):
 	def set_layers(self):
 		pass
 
+	""" method the sets the qubit whose state is observed after circuit layers
+		have been applied to initial qubit state. """
+	@abstractmethod
+	def set_observable(self):
+		pass
+
 	""" method used by circuit initialize weights of unitary operations """
 	@abstractmethod
 	def initial_weights(self):
@@ -172,6 +176,11 @@ class VariationalClassifier(ClassificationCircuit):
 		circuit """
 	def set_layers(self):
 		self.layers = 2
+
+	""" set observable for VC circuit """
+	def set_observable (self):
+		self.obs = Observable(self.qubits)
+		self.obs.add_operator(1, 'Z 15')
 
 	""" method that initializes the weights of a circuit according
 		to the circuit architecture, number of layers, qubits, etc. """
@@ -279,13 +288,18 @@ class TreeTensorNetwork(ClassificationCircuit):
 
 		# check that the number of qubits assligned to the circuit is correct
 		if (not is_valid):
-			print(f"\nError :: number of qubits ({self.qubit}) assigned to the circuit must by an integer of log2(N).")
+			print(f"\nError :: number of qubits ({self.qubits}) assigned to the circuit must by an integer of log2(N).")
 			exit()
-		elif (verbose):
-			print(f"\nThere are {layer} layers in the {self.qubit} qubit TNN classifier.\n")
 
 		# assign the layers to the object
 		self.layers = layer
+
+	""" set observable to TTN circuit """
+	def set_observable(self):
+		self.obs = Observable(self.qubits)
+		# the qubit which is obserbed depends on the overall number of qubits
+		operator = 'Z {:d}'.format(15)
+		self.obs.add_operator(1, operator)
 
 	""" intialize weights of classification circuit according to the TTN circuit
 		architecture. """
@@ -295,11 +309,11 @@ class TreeTensorNetwork(ClassificationCircuit):
 		# the number of weights depends on the number of layers in the circuit
 		# determine the number of weights
 		n_weights = 0
-		for l in range(self.layer):
+		for l in range(self.layers):
 			n_weights += 3 * int(self.qubits / (2 ** l))
 
 		# initialize the weights randomly, return to user
-		return random_unitary_weights(n_weights = n_weights)
+		return random_unitary_weights(n_weights = n_weights + 1)
 
 	""" method that reshapes list of unitary weights into an array that is organized
 		by the operations that are performed for each layer of the classification circuit. """
@@ -309,7 +323,7 @@ class TreeTensorNetwork(ClassificationCircuit):
 		# initialize index lower boundary for weights in list
 		lw = 0
 		# loop through all layers until at final layer
-		for j in range(i):
+		for j in range(i + 1):
 			# determine the number of weights that correspond to the layer
 			n_weights = int(self.qubits / (2 ** (j)))
 			# set the index corresponding to the upper layer of the weight
@@ -372,9 +386,11 @@ class TreeTensorNetwork(ClassificationCircuit):
 
 		if i > 0:
 			# if not the first layer
-			for l in range(i - 1):
+			for l in range(i):
 				# for each layer
 				# remove every other qubit from the list
 				for j in range(int(len(q) / 2)):
 					q.pop(j)	
+
+		return q
 
