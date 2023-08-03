@@ -132,6 +132,6 @@ def sample_state_distribution (s, m, save_path = None):
 		plt.savefig(save_path, dpi = 400, bboxinches = 'tight')
 
 if __name__ == '__main__':
-	sum_QFT(15,5)
+	sum_QFT(11,1)
 
 
