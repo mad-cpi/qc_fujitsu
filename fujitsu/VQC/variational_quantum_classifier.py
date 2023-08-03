@@ -43,7 +43,7 @@ default_threshold_increase_step = 50
 # maximum threshold, after which the threshold will not increase any more
 # if thresholding is off, this is the constant value used for thresholding
 # calssifications from the quantum circuit
-default_threshold_max = 0.10
+default_threshold_max = 0.75
 
 # default batching status
 default_batch_status = False
@@ -81,6 +81,7 @@ def optimize(vqc):
 	vqc.initialize_optimization_iterations()
 
 	# optimize the weights associated with the circuit
+	W_init = vqc.W
 	opt = minimize (vqc.cost_function, vqc.W, method = 'Powell', bounds = vqc.B)
 
 	# assign the optimal weights to the classification circuit
@@ -203,6 +204,7 @@ class VQC:
 
 		# load classification data
 		self.Y = np.array(df[class_col])
+		self.Y = self.Y * 2 - np.ones(len(self.Y)) # shift label form [0, 1] to [-1, 1]
 
 		# if the user wants to write the data set to the
 		if verbose:
@@ -223,6 +225,11 @@ class VQC:
 		else:
 			print(f"ERROR :: {circuit} circuit architecture not implemented yet.")
 			exit()
+
+		if QFT == True:
+			# if the QFT status is true
+			# turn QFT embedding for the circuit on
+			self.circuit.set_QFT_status(status = QFT)
 
 		# initialize unitary weights and their upper and lower bounds
 		# according to the number of qubits and circuit architecture
@@ -245,12 +252,14 @@ class VQC:
 			self.threshold = default_threshold_max
 
 		# if batching is turned on
+		# adjust for class imbalance
 		if self.batch_status:
 			# generate a random list of X and Y
 			# TODO :: double check that this works
 			n_batch = math.floor(self.batch_size * len(self.X))
 			index = np.random.randint(0, high = len(self.X), size = n_batch)
 		else:
+			# generate training set that is event in active and inactive samples
 			index = [x for x in range(len(self.X))]
 
 		# make predictions for all X values
@@ -269,7 +278,11 @@ class VQC:
 			# add the prediction and its known value to the list
 			Y_pred.append([y, self.Y[i]])
 
-
+		# check that the length of the predictions array is the same length
+		# as the batch array
+		print (Y_pred)
+		if (len(Y_pred) != len(index)):
+			exit()
 		# calculate the cost and accuracy of the weights
 		cost, acc = error(Y_pred)
 		self.n_it += 1

@@ -1,16 +1,19 @@
 import sys, os
-import math
+import math, cmath
 import pandas as pd
 import numpy as np
+from numpy import pi
 from qulacs import QuantumState, QuantumCircuit, Observable
-from qulacs.gate import RX, RY, RZ, CNOT
+from qulacs.gate import RX, RY, RZ, CNOT, H, DenseMatrix, SWAP
 from abc import abstractmethod, ABC
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 ## PARAMETERS ## 
 # average of random numbers generation for initial unitary weights
 norm_avg = 0.
 # standard deviation of random numbers generated for initial unitary weights
-norm_std = 0.5
+norm_std = 0.1
 # upper boundary of each universal unitary operation
 upper_unitary_boundary = 2. * math.pi 
 # lower boundary of each universal unitary operation
@@ -21,6 +24,31 @@ lower_unitary_boundary = -2. * math.pi
 default_QFT_status = False
 
 ## METHODS UTILIZEDS BY CIRCUIT ARCHITECTURE ##
+
+""" measure distribution of quantum states """
+def sample_state_distribution (s, m, save_path = None):
+	
+	# number of qunits in state
+	n = s.get_qubit_count()
+
+	# sample quantum state m-times
+	data = s.sampling(m)
+	hist = [format(value, "b").zfill(n) for value in data]
+
+
+	state_dist = pd.DataFrame(dict(State=hist))
+	g = sns.displot(data=state_dist, x="State", discrete=True)
+	plt.suptitle(f"({n} Qubits Sampled {m} Times)")
+	plt.title("Distribution of Quantum Measured Quantum States")
+	plt.xlabel("Unique Quantum State")
+	plt.ylabel("Number of Times Measured")
+	if save_path is None:
+		# show the plot
+		plt.show()
+	else:
+		# save the state to the path
+		plt.savefig(save_path, dpi = 400, bboxinches = 'tight')
+
 
 """ method the reverses the order of a bit string
 	(in qulacs, the rightmost bit corresponds to
@@ -50,7 +78,7 @@ def qubit_encoding (x):
 	# for each integer in the binary string
 	for i in range(len(x)):
 		# if the bit is one
-		if x[i] == '1':
+		if x[i] == 1:
 			# add X gate to corresponding qubit
 			c.add_X_gate(i)
 
@@ -80,7 +108,64 @@ def random_unitary_weights (n_weights, avg = norm_avg, std = norm_std):
 
 	return weights, bounds
 
-""" TODO ::  add QFT_encoding. """
+""" method that generates a circuit, which translates an n-qubit state which is initially in
+	the zero computational basis to a the zero fourier basis."""
+def qft_init(circuit,n):
+
+    n_init = n
+    while n >0:
+        a = n_init-n
+        circuit.add_gate(H(a)) # Apply the H-gate to the most significant qubit
+        for qubit in range(n-1):
+            x= 1j*pi/2**(qubit+1)
+            den_gate = DenseMatrix([a,a+qubit+1],[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,cmath.exp(x)]])
+            circuit.add_gate(den_gate)
+        n = n-1
+    return circuit
+
+""" creates circruit that adds k to m in the fourier basis state """
+def add_k_fourier(k, circuit, n):
+	# TODO :: check that k is an integer with the same bit size as m
+
+	# get binary string representation of string
+
+	# for each qubit in the m-fourier basis state
+	for i in range(k):
+		for x in range(n):
+			gate = RZ(x, -np.pi/(2**(n-x-1)))
+	        # add gate to circuit
+			circuit.add_gate(gate)
+	
+	# return circuit to user
+	return circuit
+
+""" method used to initialize qubit state as fourier basis corresponding to bit string
+	passed to the method. """
+def QFT_encoding(x):
+
+	# embed x as the computational basis
+	n = len(x)
+	s = qubit_encoding(x)
+
+	# convert the bit string to an integer, embed the integer in the fourier basis
+	k = s.sampling(1)
+	print(k)
+	cQFT = QuantumCircuit(n)
+	print(k)
+	cQFT = qft_init(cQFT, n)
+	print(k)
+	cQFT = add_k_fourier(k[0], cQFT, n)
+	print(k)
+
+
+	# reset state, return the fourier basis to the user
+	s = QuantumState(n)
+	print(k)
+	cQFT.update_quantum_state(s)
+	print(k)
+	print(s.sampling(2))
+	exit()
+	return s
 
 """ TODO :: add method to quantifying qubit circuits (?? forgot what I meant by this) """
 
@@ -114,7 +199,8 @@ class ClassificationCircuit (ABC):
 
 		# initialize qubit state
 		if self.QFT_status ==  True:
-			print (f"TODO :: implement QFT embedding.")
+			# embed string as fourier basis
+			state = QFT_encoding(x)
 		else:
 			# default is embed bit string as computational basis
 			state = qubit_encoding(x)
@@ -175,12 +261,12 @@ class VariationalClassifier(ClassificationCircuit):
 	""" set the number of layers for the variational classification
 		circuit """
 	def set_layers(self):
-		self.layers = 2
+		self.layers = 1
 
 	""" set observable for VC circuit """
 	def set_observable (self):
 		self.obs = Observable(self.qubits)
-		self.obs.add_operator(1, 'Z 15')
+		self.obs.add_operator(1, 'Z 0')
 
 	""" method that initializes the weights of a circuit according
 		to the circuit architecture, number of layers, qubits, etc. """
@@ -196,7 +282,7 @@ class VariationalClassifier(ClassificationCircuit):
 	def get_layer_weights(self, W, i):
 
 		# reshape list containing layer weights
-		w = W.reshape(self.layers, self.qubits, 3) # remove bias, reshape according to number of layers
+		w = W.reshape(self.layers, self.qubits, 3) # reshape according to number of layers
 		# return the weights corresponding to the layer to the user
 		return w[i]
 
@@ -219,15 +305,17 @@ class VariationalClassifier(ClassificationCircuit):
 		for j in range(n):
 			# apply each R gate
 			for k in range(3):
+				# if j == 1:
+				# 	print(f"LAYER ({i}), QUBIT ({j}), GATE ({k}), WEIGHT ({w[j][k]})")
 				if k == 0:
 					# if j == 0, apply RX gate to wire n
-					gate = RX (i, w[j][k])
+					gate = RX (j, w[j][k])
 				elif k == 1:
 					# if j == 1, aply RY gate to wire n
-					gate = RY (i, w[j][k])
+					gate = RY (j, w[j][k])
 				elif k == 2:
 					# if j == 2, apply RZ gate to write n
-					gate = RZ (i, w[j][k])
+					gate = RZ (j, w[j][k])
 
 				# add gate to circuit
 				circuit.add_gate(gate)
@@ -237,16 +325,16 @@ class VariationalClassifier(ClassificationCircuit):
 			# in the schulgin data set, the first 5 features
 			# in the 16 bit fingerprint are all the same for the 
 			# entire dataset, so do not apply control bits to those features
-			if i >= 5 or i == (n-1):
-				# target bit
-				j = i + 1 
-				# periodic wrap at boundaries
-				if j >= n:
-					j = 0
-				# apply control bit to target bit
-				gate = CNOT (i, j)
-				# add to circuit
-				circuit.add_gate(gate)
+			# if i >= 5 or i == (n-1):
+			# target bit
+			j = i + 1 
+			# periodic wrap at boundaries
+			if j >= n:
+				j = 0
+			# apply control bit to target bit
+			gate = CNOT (i, j)
+			# add to circuit
+			circuit.add_gate(gate)
 
 		return circuit
 
@@ -311,9 +399,10 @@ class TreeTensorNetwork(ClassificationCircuit):
 		n_weights = 0
 		for l in range(self.layers):
 			n_weights += 3 * int(self.qubits / (2 ** l))
+		n_weights += 1
 
 		# initialize the weights randomly, return to user
-		return random_unitary_weights(n_weights = n_weights + 1)
+		return random_unitary_weights(n_weights = n_weights)
 
 	""" method that reshapes list of unitary weights into an array that is organized
 		by the operations that are performed for each layer of the classification circuit. """
