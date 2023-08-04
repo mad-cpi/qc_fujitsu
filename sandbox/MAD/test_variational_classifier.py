@@ -97,6 +97,7 @@ def load_test_activity_data():
 
 	# load Y array (activity)
 	Y = np.array(data['single-class-label'])
+	Y = Y * 2 - np.ones(len(Y)) # shift label form [0, 1] to [-1, 1]
 	
 	return X, Y
 
@@ -508,7 +509,8 @@ def cost_function (W):
 		print("Iteration: {:5d} | Cost: {:0.5f} | Accuracy : {:0.5f}"\
 			.format(n_it, cost, acc))
 
-	return cost
+	# return cost
+	return 1. - acc
 
 ## ARGUMENTS ## 
 # number of qubits in quantum circuit
