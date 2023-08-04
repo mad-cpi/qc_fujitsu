@@ -2,6 +2,7 @@ import sys, os
 import math, cmath
 import pandas as pd
 import numpy as np
+import torch
 from numpy import pi
 from qulacs import QuantumState, QuantumCircuit, Observable
 from qulacs.gate import RX, RY, RZ, CNOT, H, DenseMatrix, SWAP
@@ -48,7 +49,6 @@ def sample_state_distribution (s, m, save_path = None):
 	else:
 		# save the state to the path
 		plt.savefig(save_path, dpi = 400, bboxinches = 'tight')
-
 
 """ method the reverses the order of a bit string
 	(in qulacs, the rightmost bit corresponds to
@@ -377,7 +377,7 @@ class TreeTensorNetwork(ClassificationCircuit):
 	def set_observable(self):
 		self.obs = Observable(self.qubits)
 		# the qubit which is obserbed depends on the overall number of qubits
-		operator = 'Z {:d}'.format(15)
+		operator = 'Z {:d}'.format(10)
 		self.obs.add_operator(1, operator)
 
 	""" intialize weights of classification circuit according to the TTN circuit
@@ -469,8 +469,15 @@ class TreeTensorNetwork(ClassificationCircuit):
 			for l in range(i):
 				# for each layer
 				# remove every other qubit from the list
+				# start with empty array
+				q_new = []
 				for j in range(int(len(q) / 2)):
-					q.pop(j)	
+					if j % 2 == 0:
+						q_new.append(q[2 * j + 1])
+					else:
+						q_new.append(q[2 * j ])
+				# update array of qubits with hald of qubits removed
+				q = q_new
 
 		return q
 
