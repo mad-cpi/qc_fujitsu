@@ -90,7 +90,6 @@ def optimize(vqc):
 
 	# TODO :: save weights!!
 
-
 """ method used to define the error associated with a set of circuit weights,
 	calculated by find the norm between a set of predict classifications and
 	their real values."""
@@ -280,7 +279,7 @@ class VQC:
 
 		# check that the length of the predictions array is the same length
 		# as the batch array
-		print (Y_pred)
+		# print (Y_pred)
 		if (len(Y_pred) != len(index)):
 			exit()
 		# calculate the cost and accuracy of the weights
