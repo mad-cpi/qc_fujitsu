@@ -28,6 +28,8 @@ df = pd.read_csv(path)
 smiles = df[smile_col].tolist()
 classifications = df[class_col].tolist()
 
+print(smiles)
+print(classifications)
 
 # split data set into testing and training sets
 rs = ShuffleSplit(n_splits = 5, test_size = test_set_size, random_state = 42)
