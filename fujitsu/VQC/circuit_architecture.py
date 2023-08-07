@@ -252,7 +252,7 @@ class VariationalClassifier(ClassificationCircuit):
 	""" set the number of layers for the variational classification
 		circuit """
 	def set_layers(self):
-		self.layers = 1
+		self.layers = 2
 
 	""" set observable for VC circuit """
 	def set_observable (self):

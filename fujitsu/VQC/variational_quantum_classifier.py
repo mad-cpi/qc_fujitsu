@@ -93,23 +93,49 @@ def optimize(vqc):
 """ method used to define the error associated with a set of circuit weights,
 	calculated by find the norm between a set of predict classifications and
 	their real values."""
-def error (predictions):
+def error (predictions, classifications):
 	# tolerance used to measure if a prediction is correct
 	tol = 5e-2
-	# initialize loss, accuracy measurements
-	loss = 0.
+	# initialize norm, accuracy, cross entropy measurements
+	norm = 0.
 	accuracy = 0
+	ce = 0.
 	# compare all labels and predictions
-	for p in predictions:
-		# print("CLASS : {:0.5f}, PRED : {:0.5f}".format(l, p))
-		loss = loss + (p[0] - p[1]) ** 2
-		if abs(p[0] - p[1]) < tol:
-			accuracy = accuracy + 1
-	# normalize loss, accuracy by the data size
-	loss = loss / len(predictions)
-	accuracy = accuracy / len(predictions)
-	return loss, accuracy
+	for i in range(len(predictions)):
 
+		# pull the prediction and classification values
+		p = predictions[i]
+		c = classifications[i]
+
+		# rescale classification and prediction to values between zero and one
+		p = (p / 2) + 0.5
+		c = (c / 2) + 0.5
+
+		# calculate binary cross_entropy loss
+		# coarse grain the prediction values to avoid log(0) calculations
+		if p < tol:
+			# if the prediction is within the tolerance of the value 0
+			# replace the prediction with one within the range of the tolerance
+			p = tol
+		elif p > (1. - tol):
+			# if the prediction is within the tolerance of the value 1.
+			# replace the prediction with a value at the limit of the tolerance
+			tol = 1. - tol
+
+		ce += -(c * math.log(p) + (1 - c) * math.log(1 - p))
+
+		# calculate euclidean norm loss
+		norm = norm + (c - p) ** 2
+
+		# calculate model accuracy
+		if abs(c - np.sign(p)) < tol:
+			accuracy = accuracy + 1
+
+	# normalize norm, accuracy, cross entropy by the data size
+	norm = norm / len(predictions)
+	accuracy = accuracy / len(predictions)
+	ce = ce / len(predictions)
+	return norm, accuracy, ce
 
 
 ## VQC CLASS METHODS ##
@@ -265,17 +291,19 @@ class VQC:
 		# if values are above the treshhold
 		# assume the predctions are correct
 		Y_pred = []
+		Y_class = []
 		for i in index:
-			# get the smile strings
+			# get the fingerprint
 			x = self.X[i]
 
-			# make a prediction
+			# make a prediction with the weights passed to the function
 			y = self.circuit.classify(W, x)
-			if abs(y) > self.threshold:
-				y = np.sign(y)
+			# if abs(y) > self.threshold:
+			# 	y = np.sign(y)
 
 			# add the prediction and its known value to the list
-			Y_pred.append([y, self.Y[i]])
+			Y_pred.append(y)
+			Y_class.append(self.Y[i])
 
 		# check that the length of the predictions array is the same length
 		# as the batch array
@@ -283,14 +311,14 @@ class VQC:
 		if (len(Y_pred) != len(index)):
 			exit()
 		# calculate the cost and accuracy of the weights
-		cost, acc = error(Y_pred)
+		norm, acc, ce = error(Y_pred, Y_class)
 		self.n_it += 1
 		# report the status of the model predictions to the user
-		print("Iteration: {:5d} | Cost: {:0.5f} | Accuracy : {:0.5f}"\
-			.format(self.n_it, cost, acc))
+		print("Iteration: {:5d} | Cost: {:0.5f} | Cross-Entropy: {:0.5f} | Accuracy : {:0.5f}"\
+			.format(self.n_it, norm, ce, acc))
 
 		# return the value to the user
-		return cost
+		return ce
 
 	""" initialize batching protcol for optimization """
 	def set_batching(self, status, batch_size = None, verbose = True):
