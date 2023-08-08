@@ -29,32 +29,6 @@ default_VQC_circuit = 'VC'
 # default method used to encode the qubit state
 default_state_prep_method = 'BasisEmbedding'
 
-# default thresholding status
-default_threshold_status = False
-
-# default thresholding amount, if none is specified
-# when thresholding is turned on
-default_threshold_increase_size = 0.02
-
-# default initial threshold, uased when threshold is off or
-# has just been turned on
-default_initial_threshold = 0.02
-
-# default number of iterations that the threshold is increase
-default_threshold_increase_step = 50
-
-# maximum threshold, after which the threshold will not increase any more
-# if thresholding is off, this is the constant value used for thresholding
-# calssifications from the quantum circuit
-default_threshold_max = 0.75
-
-# default batching status
-default_batch_status = False
-
-# default batch size, as a precentage, when batching
-# is turned on, if none is specified
-default_batch_size = 0.8
-
 
 ## fingerprinting specifications ## 
 # TODO :: add list of acceptable fingerprints
@@ -78,18 +52,19 @@ default_fp_radius = 3
 	object. """
 def optimize(vqc):
 
-	print(f"\nOptimizing VQC circuit ..")
-
 	# initialize the iteration count for the circuit
 	vqc.initialize_optimization_iterations()
 
-	# TODO :: translate bit strings to state vectors that can be loaded directly
-	self.SV = self.circuit.batch_state_prep(self.X)
+	# translate bit strings to state vectors before processing
+	print(f"\nTranslating fingerprints to quantum state vectors ..")
+	vqc.SV = vqc.circuit.batch_state_prep(vqc.X)
 
-	# TODO :: set the number of times that the 
+	# TODO :: set the number of times that the optimization function stores
+	# 		stats associated with the optimization function
 
 	# optimize the weights associated with the circuit
 	W_init = vqc.W
+	print(f"Optimizing VQC circuit ..")
 	opt = minimize (vqc.cost_function, vqc.W, method = 'Powell', bounds = vqc.B)
 
 	# assign the optimal weights to the classification circuit
@@ -167,14 +142,12 @@ class VQC:
 		# initialize the architecture type used for VQC
 		self.circuit = None
 
-		# initialize hyperparameters as off
-		self.set_threshold(status = default_threshold_status, verbose = False)
-		self.set_batching(status = default_batch_status, verbose = False)
-		self.n_it = 0
-
 		# initialize X and Y data sets as empty
 		self.X = None
 		self.Y = None
+		self.SV = None
+		# array that contains state vectors used to initialize 
+		# quantum state during circuit calculations
 
 		# array containing weights of unitary operations
 		# and their upper and lower boundaries
@@ -247,7 +220,7 @@ class VQC:
 
 		# load dataset, inform user
 		smi = df[smile_col].tolist()
-		print(f"\nTranslating SMILES to {self.classical_bits}-bit vector with {fp_type} ..")
+		print(f"Translating SMILES to {self.classical_bits}-bit vector with {fp_type} ..")
 
 		# generate bit vector fingerprints
 		if BAE == True:
@@ -285,7 +258,7 @@ class VQC:
 
 		# initialize the circuit architecture
 		# if none was specified, load the default ansatz
-		if circuit == None:
+		if circuit is None:
 			circuit = default_VQC_circuit
 
 		# initialize the anstaz object 
@@ -305,169 +278,31 @@ class VQC:
 		in predicting the class of a given set of bit strings. """
 	def cost_function(self, W):
 
-		# if thresholding is turned on, establish the threshold
-		if self.thresholding_status:
-			if (self.n_it % self.threshold_increase_freq == 0 ) and (self.n_it != 0):
-				print(f"Threshold increased from {self.threshold} to {(self.threshold + self.threshold_increase_size)}.")
-				self.threshold += self.threshold_increase_size
-
-			if self.threshold > self.threshold_max:
-				self.threshold = self.threshold_max
-				print(f"Threshold set to maximum ({self.threshold})")
-		else:
-			self.threshold = default_threshold_max
-
-		# if batching is turned on
-		# adjust for class imbalance
-		if self.batch_status:
-			# generate a random list of X and Y
-			# TODO :: double check that this works
-			n_batch = math.floor(self.batch_size * len(self.X))
-			index = np.random.randint(0, high = len(self.X), size = n_batch)
-		else:
-			# generate training set that is event in active and inactive samples
-			index = [x for x in range(len(self.X))]
-
 		# make predictions for all X values
-		# if values are above the treshhold
-		# assume the predctions are correct
 		Y_pred = []
 		Y_class = []
-		for i in index:
-			# get the fingerprint
-			x = self.X[i]
+		for i in range(len(self.SV)):
+
+			# state vector
+			sv = self.SV[i]
 
 			# make a prediction with the weights passed to the function
-			y = self.circuit.classify(W, x)
-			# if abs(y) > self.threshold:
-			# 	y = np.sign(y)
+			y = self.circuit.classify(W, state_vector = sv)
 
 			# add the prediction and its known value to the list
 			Y_pred.append(y)
 			Y_class.append(self.Y[i])
 
-		# check that the length of the predictions array is the same length
-		# as the batch array
-		# print (Y_pred)
-		if (len(Y_pred) != len(index)):
-			exit()
 		# calculate the cost and accuracy of the weights
 		norm, acc, ce = error(Y_pred, Y_class)
 		self.n_it += 1
+
 		# report the status of the model predictions to the user
 		print("Iteration: {:5d} | Cost: {:0.5f} | Cross-Entropy: {:0.5f} | Accuracy : {:0.5f}"\
 			.format(self.n_it, norm, ce, acc))
 
 		# return the value to the user
 		return ce
-
-	""" initialize batching protcol for optimization """
-	def set_batching(self, status, batch_size = None, verbose = True):
-
-		if status == True:
-			# turn on the batching routine
-			self.batch_status = True
-
-			# if the batch size was not passed to the method
-			if batch_size == None:
-				# assign the default batch size
-				self.batch_size = default_batch_size
-			else:
-				# check that the batch size value passed to the method is correct
-				if batch_size <= 1. and batch_size > 0.:
-					# if the value is between one and zero
-					self.batch_size = batch_size
-				else:
-					# assign the default value
-					self.batch_size = default_batch_size
-
-			if verbose:
-				print(f"\nVQC optimization batching was turned on.")
-				print("Batch size :: {:4.2f} precent of training set".format(self.batch_size))
-		else:
-			self.batch_status = False
-
-	""" initialize tresholding protocol for optimization routine """
-	def set_threshold(self, status, threshold_initial = None, threshold_increase_size = None, threshold_increase_freq = None, threshold_max = None, verbose = True):
-
-		if status == True:
-			# turn on the tresholding routine
-			self.thresholding_status = True
-
-			# assign the thresholding parameters
-			# if the threshold was no passed to the method
-			if threshold_initial == None:
-				# assign the default value
-				self.threshold = default_initial_threshold
-			else:
-				# check that the value passed to the method is correct
-				if threshold_initial > 0. and threshold_initial < 1.:
-					# if the value is between one and zero
-					self.threshold = threshold_initial
-				else:
-					# assign the default
-					self.threshold = default_initial_threshold
-
-			# assign the thresholding increase size
-			if threshold_increase_size == None:
-				# if no value was passed to the method
-				# assign the default
-				self.threshold_increase_size = default_threshold_increase_size
-			else:
-				# if a value for the threshold increase size was passed to the method
-				# check that the value is okay
-				if threshold_increase_size > 0. and threshold_increase_size < 0.1:
-					# assign the value
-					self.threshold_increase_size = threshold_increase_size
-				else:
-					# if the value is outside of the allowable range
-					# assign the default
-					self.threshold_increase_size = default_threshold_increase_size
-
-			# assign the thresholding increase frequency
-			if threshold_increase_freq == None:
-				# if no value was passed to the method, assign the default
-				self.threshold_increase_freq = default_threshold_increase_step
-			else:
-				# if a value was passed to the method, check that the value meets the constrains
-				if threshold_increase_freq > 0:
-					# assign the value
-					self.threshold_increase_freq = threshold_increase_freq
-				else:
-					# if the value did not meet the constrains, assign the default
-					self.threshold_increase_freq = default_threshold_increase_step
-
-			# assign the maximum threshold for the method
-			if threshold_max == None:
-				# if a value has not been passed to the method,
-				# assign the default
-				self.threshold_max = default_threshold_max
-			else:
-				# if a value has been passed to the method,
-				# check that is meets the contrains
-				if threshold_max > 0. and threshold_max < 1.0:
-					# the value meets the contrains, 
-					# assign the max threshold value
-					self.threshold_max = threshold_max 
-				else:
-					# the value does not meet the criteria
-					# assign the default
-					self.threshold_max = default_threshold_max
-
-			# report to user
-			if verbose:
-				print(f"\nVQC optimization thresholding turned on.")
-				print("Initial Threshold :: {:5.3f}".format(self.threshold))
-				print("Threshold Increase Frequency :: {:03d} iterations".format(self.threshold_increase_freq))
-				print("Threshold Increase Size :: {:5.3f}".format(self.threshold_increase_size))
-				print("Maximum Threshold :: {:5.3f}".format(self.threshold_max))
-
-		else:
-			self.thresholding_status = False 
-
-			if verbose:
-				print(f"\nVQC optimization thresholding turned off.")
-				print("Threshold will remain constant at {:5.3}".format(default_threshold_max))
 
 	""" method used to write bit strings and classification to external file."""
 	def write_data (self, path):

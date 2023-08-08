@@ -220,34 +220,54 @@ class ClassificationCircuit (ABC):
 		than translating a bit string to a quantum state iterativly on each classify call. The 
 		state vector that is returned depends on the state prep method that is assigned to the 
 		circuit. Method returns an array of state vectors."""
-	def batch_state_prep(X):
+	def batch_state_prep(self, X):
 
 		# for each bit string
+		S = []
 		for x in X:
-			print x
-
-		exit()
-
-		return None
+			# initialize qubit state
+			if self.state_prep ==  "QFT_encoding":
+				# embed string as fourier basis
+				state = QFT_encoding(x)
+			elif self.state_prep == "AmplitudeEmbedding":
+				# embed state as amplitudes
+				state = amp_encoding(x)
+			else:
+				# default is embed bit string as computational basis
+				state = basis_encoding(x)
+			# add state vector to array
+			S.append(state.get_vector())
+		# return the array to the user
+		return S
 
 	""" methed used by all classification circuits. weights passed to method (W) 
 		are used to make prediction / classification for bit string passed to method (x). """
-	def classify(self, Wb, x):
+	def classify(self, Wb, state_vector = None, bit_string = None):
 
 		# remove bias from list of weights
 		b = Wb[-1]
 		W = Wb[:-1]
 
-		# initialize qubit state
-		if self.state_prep ==  "QFT_encoding":
-			# embed string as fourier basis
-			state = QFT_encoding(x)
-		elif self.state_prep == "AmplitudeEmbedding":
-			# embed state as amplitudes
-			state = amp_encoding(x)
+		# load initial quantum state
+		if state_vector is None and bit_string is None:
+			# must specify either the state vector or the bit string
+			print (f"ERROR :: Ansatz prediction requires either bit string or state_vector.")
+			exit()
+		elif state_vector is None:
+			# initialize qubit state using the bit string
+			if self.state_prep ==  "QFT_encoding":
+				# embed string as fourier basis
+				state = QFT_encoding(x)
+			elif self.state_prep == "AmplitudeEmbedding":
+				# embed state as amplitudes
+				state = amp_encoding(x)
+			else:
+				# default is embed bit string as computational basis
+				state = basis_encoding(x)
 		else:
-			# default is embed bit string as computational basis
-			state = basis_encoding(x)
+			# use the state vector to load the initial qubit state
+			state = QuantumState(self.qubits)
+			state.load(state_vector)
 
 		# apply circuit layers to quantum state
 		for i in range(self.layers):
