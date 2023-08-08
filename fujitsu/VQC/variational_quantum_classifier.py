@@ -366,6 +366,33 @@ class VQC:
 		# return the dictionary to the user
 		return vqc_dict
 
+	""" method that uses a dictionary to assign the vqc state according to the
+		data stored in the dictionary. """
+	def load_dict(self, vqc_dict):
+
+		# assign values to circuit according to data stored in dictionary
+		self.qubits = vqc_dict['qubits']
+		self.state_prep = vqc_dict['qubit_state_prep']
+		if vqc_dict['ansatz'] == 'VariationalClassifier':
+			self.circuit = VariationalClassifier(self.qubits, self.state_prep)
+		elif vqc_dict['ansatz'] == 'TreeTensorNetwork':
+			self.circuit = TreeTensorNetwork(self.qubits, self.state_prep)
+		else:
+			print(f"Unable to load circuit architecture {vqc_dict['ansatz']}")
+		self.fp_type = vqc_dict['fp_type']
+		self.fp_radius = vqc_dict['fp_radius']
+
+		# create an empty array that is the weights length specified in the dictionary
+		self.W = [[] for i in range(vqc_dict['n_weights'])]
+		for i in len(self.W):
+			self.W[i] = vqc_dict['weights_{:03d}'.format(i)]
+
+		# create and empty array this is the boundaries length specified in the dictionary
+		self.B = [[[], []] for i in range(vqc_dict['n_bounds'])]
+		for i in len(self.B):
+			self.B[i][0] = vqc_dict['bounds_{:03d}_0'.format(i)]
+			self.B[i][1] = vqc_dict['bounds_{:03d}_1'.format(i)]
+
 	""" method used to save the state of a circuit in a way that the exact same
 		circuit can be reloaded. This includes the circuits weights (esp. after
 		optimization), state prep, etc. """
@@ -385,6 +412,16 @@ class VQC:
 		f = open(save_file, 'w')
 		yaml.dump(vqc_dict, f)
 		f.close()
+
+	""" method that loads yaml file, which specifies circuit state. """
+	def load_circuit (self, load_path):
+
+		# check that the path to the yaml file exists
+		if not os.path.exists(load_path):
+			print(f"ERROR :: Unable to load circuit. Path ({load_path}) does not exist.")
+
+		vqc_dict = yaml.load(load_path)
+		self.load_dict(vqc_dict)
 
 
 	""" method used to write bit strings and classification to external file."""
