@@ -107,6 +107,10 @@ def error (predictions, classifications):
 		p = predictions[i]
 		c = classifications[i]
 
+		# calculate model accuracy
+		if abs(c - np.sign(p)) < tol:
+			accuracy = accuracy + 1
+
 		# rescale classification and prediction to values between zero and one
 		p = (p / 2) + 0.5
 		c = (c / 2) + 0.5
@@ -126,10 +130,6 @@ def error (predictions, classifications):
 
 		# calculate euclidean norm loss
 		norm = norm + (c - p) ** 2
-
-		# calculate model accuracy
-		if abs(c - np.sign(p)) < tol:
-			accuracy = accuracy + 1
 
 	# normalize norm, accuracy, cross entropy by the data size
 	norm = norm / len(predictions)
