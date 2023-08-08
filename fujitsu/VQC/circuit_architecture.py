@@ -315,7 +315,6 @@ class ClassificationCircuit (ABC):
 		pass
 
 
-
 class VariationalClassifier(ClassificationCircuit):
 
 	# implementation inspired by: 
@@ -553,4 +552,6 @@ class TreeTensorNetwork(ClassificationCircuit):
 				q = q_new
 
 		return q
+
+
 

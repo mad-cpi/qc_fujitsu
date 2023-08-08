@@ -2,6 +2,8 @@ import sys, os
 import pandas as pd
 import numpy as np
 import math
+# used for model saving and loadingvv
+import yaml
 # rdkit libraries
 from rdkit import Chem
 from rdkit.Chem import AllChem, rdFingerprintGenerator
@@ -110,7 +112,7 @@ def error (predictions, classifications):
 		elif p > (1. - tol):
 			# if the prediction is within the tolerance of the value 1.
 			# replace the prediction with a value at the limit of the tolerance
-			tol = 1. - tol
+			p = 1. - tol
 
 		ce += -(c * math.log(p) + (1 - c) * math.log(1 - p))
 
@@ -128,16 +130,19 @@ def error (predictions, classifications):
 # variational quantum classifier 
 class VQC:
 	""" initialization routine for VQC object. """
-	def __init__(self, qubits, state_prep = None):
+	def __init__(self, qubits, state_prep = None, fp_radius = None, fp_type = None):
 
 		# initialize the number of qubits input 
 		# into the classification circuit
-		self.initialize_VQC_qubits(qubits)
+		self.set_VQC_qubits(qubits)
 
 		# initialize the number of classical bits, according to 
 		# how the classical information are encoded in the qubits
-		self.initialize_qubit_state_prep_method(state_prep_method = state_prep, \
+		self.set_qubit_state_prep_method(state_prep_method = state_prep, \
 			default = default_state_prep_method)
+
+		# assign fingerprinting technique
+		self.set_fingerprint(fp_type = fp_type, fp_radius = fp_radius)
 
 		# initialize the architecture type used for VQC
 		self.circuit = None
@@ -155,7 +160,7 @@ class VQC:
 		self.B = None
 
 	""" method used to wrap qubit initialization. """
-	def initialize_VQC_qubits(self, qubits):
+	def set_VQC_qubits(self, qubits):
 
 		# check that the number of qubits assigned to
 		# the VQC is acceptable
@@ -172,9 +177,9 @@ class VQC:
 	""" method used to initialize method for qubit state preperation. 
 		The state preperation method determines the number of classical
 		bits that should be used to load the dataset. """
-	def initialize_qubit_state_prep_method(self, state_prep_method, default):
+	def set_qubit_state_prep_method(self, state_prep_method, default):
 		# if no state prep specification was provided by the user
-		if state_prep_method == None:
+		if state_prep_method is None:
 			# assign the default
 			state_prep_method = default
 
@@ -192,6 +197,26 @@ class VQC:
 			print(f"TODO :: Implement {state_prep_method} qubit state preperation method.")
 			exit()
 
+	""" method for assigning the techniques that are used to fingerprint
+		SMILE strings. """
+	def set_fingerprint(self, fp_type = None, fp_radius = None):
+
+		# assign the fingerprinting method
+		if fp_type is None:
+			fp_type = default_fp_type
+
+		if fp_type == 'rdkfp':
+			self.fp_type = 'rdkfp'
+		else:
+			print(f"TODO :: Implement {fp_type} fingerprinting technique. Assigning default ({default_fp_type}).")
+			self.fp_type = default_fp_type
+
+		# assign the fingerprinting radius
+		if fp_radius is None or fp_radius < 3:
+			fp_radius = default_fp_radius
+
+		self.fp_radius = fp_radius
+
 	""" method used to the set the number used to enumerate the number
 		of times that a circuit has been optimized to zero """
 	def initialize_optimization_iterations(self):
@@ -200,7 +225,7 @@ class VQC:
 
 	""" method used to load smile strings and activity classifications
 		from csv file. """
-	def load_data (self, path, smile_col, class_col, fp_type = default_fp_type, fp_radius = default_fp_radius, BAE = False, verbose = False):
+	def load_data (self, path, smile_col, class_col, BAE = False, verbose = False):
 
 		# check that the path to the specified file exists
 		if not os.path.exists(path):
@@ -220,7 +245,7 @@ class VQC:
 
 		# load dataset, inform user
 		smi = df[smile_col].tolist()
-		print(f"Translating SMILES to {self.classical_bits}-bit vector with {fp_type} ..")
+		print(f"Translating SMILES to {self.classical_bits}-bit vector with {self.fp_type} ..")
 
 		# generate bit vector fingerprints
 		if BAE == True:
@@ -228,9 +253,13 @@ class VQC:
 			# to low dimensional bit vector
 			print(f" TODO :: implement autoencoder.")
 			exit()
-		else:
+		elif self.fp_type == 'rdkfp':
+			# use the rdkfp
 			fp = [AllChem.GetMorganFingerprintAsBitVect(Chem.MolFromSmiles(x), \
-				radius = fp_radius, nBits = self.classical_bits, useFeatures = True).ToBitString() for x in smi]
+				radius = self.fp_radius, nBits = self.classical_bits, useFeatures = True).ToBitString() for x in smi]
+		else:
+			print(f"TODO :: Implement {self.fp_type} fingerprinting technique.")
+			exit()
 
 		# translate fingerprint vectors to binary strings
 		self.X = np.zeros((len(fp), self.classical_bits), dtype=int)
@@ -303,6 +332,60 @@ class VQC:
 
 		# return the value to the user
 		return ce
+
+	""" method that stores the current state of the circuit as a dictionary. """
+	def gen_dict(self):
+
+		# initialize empty dictionary
+		vqc_dict = {}
+
+		# add circuit parameters to dictionary
+		vqc_dict['qubits'] = self.qubits
+		vqc_dict['qubit_state_prep'] = self.state_prep
+		if type(self.circuit) is VariationalClassifier:
+			vqc_dict['ansatz'] = 'VariationalClassifier'
+		elif type(self.circuit) is TreeTensorNetwork:
+			vqc_dict['ansatz'] = 'TreeTensorNetwork'
+		else:
+			vqc_dict['ansatz'] = 'NA'
+		vqc_dict['fp_type'] = self.fp_type
+		vqc_dict['fp_radius'] = self.fp_radius
+		vqc_dict['n_weights'] = len(self.W)
+		vqc_dict['n_bounds'] = len(self.B)
+
+		# save individual weights
+		for i in range(len(self.W)):
+			vqc_dict['weights_{:03d}'.format(i)] = str(self.W[i])
+
+		# save upper and lower boundaries for each weight
+		for i in range(len(self.B)):
+			vqc_dict['bounds_{:03d}_0'.format(i)] = str(self.B[i][0])
+			vqc_dict['bounds_{:03d}_1'.format(i)] = str(self.B[i][1])
+
+
+		# return the dictionary to the user
+		return vqc_dict
+
+	""" method used to save the state of a circuit in a way that the exact same
+		circuit can be reloaded. This includes the circuits weights (esp. after
+		optimization), state prep, etc. """
+	def save_circuit(self, save_to = None, save_as = None):
+
+		if save_to is None:
+			# must pass path to method
+			print(f"ERROR :: must specify save directory as save_to.")
+
+		# check that the path exists
+		# if it does not, make the path
+		if not os.path.exists(save_to):
+			os.mkdir(save_to)
+
+		vqc_dict = self.gen_dict()
+		save_file = save_to + save_as + '.yaml'
+		f = open(save_file, 'w')
+		yaml.dump(vqc_dict, f)
+		f.close()
+
 
 	""" method used to write bit strings and classification to external file."""
 	def write_data (self, path):
