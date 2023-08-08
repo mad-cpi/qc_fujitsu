@@ -215,6 +215,21 @@ class ClassificationCircuit (ABC):
 		else:
 			self.QFT_status = default_QFT_status
 
+	""" method that translates an array of bit strings into array of vectors that describe the 
+		initial qubit state. Vectors can be used to initialize the qubit state directly, rather
+		than translating a bit string to a quantum state iterativly on each classify call. The 
+		state vector that is returned depends on the state prep method that is assigned to the 
+		circuit. Method returns an array of state vectors."""
+	def batch_state_prep(X):
+
+		# for each bit string
+		for x in X:
+			print x
+
+		exit()
+
+		return None
+
 	""" methed used by all classification circuits. weights passed to method (W) 
 		are used to make prediction / classification for bit string passed to method (x). """
 	def classify(self, Wb, x):

@@ -84,6 +84,8 @@ def optimize(vqc):
 	vqc.initialize_optimization_iterations()
 
 	# TODO :: translate bit strings to state vectors that can be loaded directly
+	self.SV = self.circuit.batch_state_prep(self.X)
+
 	# TODO :: set the number of times that the 
 
 	# optimize the weights associated with the circuit
