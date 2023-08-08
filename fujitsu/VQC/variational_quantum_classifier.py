@@ -26,6 +26,9 @@ min_qubits = 1
 # default type of circuit used for VQC
 default_VQC_circuit = 'VC'
 
+# default method used to encode the qubit state
+default_state_prep_method = 'BasisEmbedding'
+
 # default thresholding status
 default_threshold_status = False
 
@@ -142,11 +145,16 @@ def error (predictions, classifications):
 # variational quantum classifier 
 class VQC:
 	""" initialization routine for VQC object. """
-	def __init__(self, qubits):
+	def __init__(self, qubits, state_prep = None):
 
 		# initialize the number of qubits input 
 		# into the classification circuit
 		self.initialize_VQC_qubits(qubits)
+
+		# initialize the number of classical bits, according to 
+		# how the classical information are encoded in the qubits
+		self.initialize_qubit_state_prep_method(state_prep_method = state_prep, \
+			default = default_state_prep_method)
 
 		# initialize the architecture type used for VQC
 		self.circuit = None
@@ -180,6 +188,29 @@ class VQC:
 			print(f" Q ({qubits}) is outside of Q_MIN ({min_qubits}) and Q_MAX ({max_qubits}).")
 			exit()
 
+	""" method used to initialize method for qubit state preperation. 
+		The state preperation method determines the number of classical
+		bits that should be used to load the dataset. """
+	def initialize_qubit_state_prep_method(self, state_prep, default):
+		# if no state prep specification was provided by the user
+		if state_prep == None:
+			# assign the default
+			state_prep = default
+
+		# assign the state prep method
+		if state_prep == "BasisEmbedding":
+			self.state_prep = "BasisEmbedding"
+			# for basis embeddeding, the number of classical bits is the same as
+			# the number of qubits
+			self.classical_bits = self.qubits
+		elif state_prep == "AmplitudeEmedding":
+			self.state_prep = "AmplitudeEmedding"
+			# for amplitude embedding, the number of classical bits is 2 ^ N_qubits
+			self.classical_bits = 2 ** self.qubits
+		else:
+			print(f"TODO :: Implement {state_prep} qubit state preperation method.")
+			exit()
+
 	""" method used to the set the number used to enumerate the number
 		of times that a circuit has been optimized to zero """
 	def initialize_optimization_iterations(self):
@@ -195,7 +226,8 @@ class VQC:
 			print(f" PATH ({path}) does not exist. Cannot load dataset.")
 			exit()
 
-		# loaded csv
+		# inform user, loaded csv
+		print(f"\nLoading SMILES from ({path}) ..")
 		df = pd.read_csv(path)
 		# check that headers are in the dataframe, load data
 		if not smile_col in df.columns:
@@ -205,8 +237,9 @@ class VQC:
 			print(f" CLASSIFICATION COL ({class_col}) not in FILE ({path}). Unable to load classification data.")
 			exit()
 
-		# load dataset
+		# load dataset, inform user
 		smi = df[smile_col].tolist()
+		print(f"\nTranslating SMILES to {self.classical_bits}-bit vector with {fp_type} ..")
 
 		# generate bit vector fingerprints
 		if BAE == True:
@@ -216,7 +249,7 @@ class VQC:
 			exit()
 		else:
 			fp = [AllChem.GetMorganFingerprintAsBitVect(Chem.MolFromSmiles(x), \
-				radius = fp_radius, nBits = self.qubits, useFeatures = True).ToBitString() for x in smi]
+				radius = fp_radius, nBits = self.classical_bits, useFeatures = True).ToBitString() for x in smi]
 
 		# translate fingerprint vectors to binary strings
 		self.X = np.zeros((len(fp), self.qubits), dtype=int)
@@ -243,12 +276,17 @@ class VQC:
 		## TODO :: prevent this method for being called if there is no data associated with the object
 
 		# initialize the circuit architecture
+		# if none was specified, load the default ansatz
+		if circuit == None:
+			circuit = default_VQC_circuit
+
+		# initialize the anstaz object 
 		if circuit == 'VC':
 			self.circuit = VariationalClassifier(self.qubits)
 		elif circuit == 'TTN':
 			self.circuit = TreeTensorNetwork(self.qubits)
 		else:
-			print(f"ERROR :: {circuit} circuit architecture not implemented yet.")
+			print(f"ERROR :: {circuit} circuit ansatz not implemented yet.")
 			exit()
 
 		if QFT == True:
