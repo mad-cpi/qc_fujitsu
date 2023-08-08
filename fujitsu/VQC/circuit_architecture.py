@@ -50,6 +50,31 @@ def sample_state_distribution (s, m, save_path = None):
 		# save the state to the path
 		plt.savefig(save_path, dpi = 400, bboxinches = 'tight')
 
+""" method that initializes unitatary weights randomly along a normal distrubution,
+	with boundaries that correspond to the upper and lower period boundaries of any
+	qubit rotation (last weight in list corresponds to the bias used to shift result
+	of classification circuit liniarly, which is used for all classification circuits). """
+def random_unitary_weights (n_weights, avg = norm_avg, std = norm_std):
+	# initialize weights randomly along a normal distribution
+	weights = np.random.normal(avg, std, size=n_weights)
+
+	# assign boundaries to each weight 
+	# (last weight in list correspond to linear shift, 
+	#	and is assigned different boundaries)
+	bounds = [] # bounds of weights
+	# initialized as N x 2 array
+	for i in range(len(weights)):
+		if i < (len(weights) - 1):
+			bounds.append((lower_unitary_boundary, upper_unitary_boundary))
+		else:
+			# the final value in the set is the bias applied to each circuit
+			bounds.append((-1, 1))
+
+	return weights, bounds
+
+
+## QUBIT ENCODING method
+
 """ method the reverses the order of a bit string
 	(in qulacs, the rightmost bit corresponds to
 	the zeroth qubit). """
@@ -59,7 +84,7 @@ def reverse(s):
 
 """ method used to initialize qubit state in computational basis corresponding
 	to bit string passed to the method. """
-def qubit_encoding (x):
+def basis_encoding (x):
 
 	# reverse bit string due to qulacs nomenclature
 	# (in qulacs, 0th bit is represented by the right now digit,
@@ -86,27 +111,25 @@ def qubit_encoding (x):
 	c.update_quantum_state(s)
 	return s
 
-""" method that initializes unitatary weights randomly along a normal distrubution,
-	with boundaries that correspond to the upper and lower period boundaries of any
-	qubit rotation (last weight in list corresponds to the bias used to shift result
-	of classification circuit liniarly, which is used for all classification circuits). """
-def random_unitary_weights (n_weights, avg = norm_avg, std = norm_std):
-	# initialize weights randomly along a normal distribution
-	weights = np.random.normal(avg, std, size=n_weights)
+""" method used to initialize qubit state as fourier basis corresponding to bit string
+	passed to the method. """
+def QFT_encoding(x):
 
-	# assign boundaries to each weight 
-	# (last weight in list correspond to linear shift, 
-	#	and is assigned different boundaries)
-	bounds = [] # bounds of weights
-	# initialized as N x 2 array
-	for i in range(len(weights)):
-		if i < (len(weights) - 1):
-			bounds.append((lower_unitary_boundary, upper_unitary_boundary))
-		else:
-			# the final value in the set is the bias applied to each circuit
-			bounds.append((-1, 1))
+	# embed x as the computational basis
+	n = len(x)
+	s = basis_encoding(x)
 
-	return weights, bounds
+	# convert the bit string to an integer, embed the integer in the fourier basis
+	k = s.sampling(1)
+	cQFT = QuantumCircuit(n)
+	cQFT = qft_init(cQFT, n)
+	cQFT = add_k_fourier(k[0], cQFT, n)
+
+
+	# reset state, return the fourier basis to the user
+	s = QuantumState(n)
+	cQFT.update_quantum_state(s)
+	return s
 
 """ method that generates a circuit, which translates an n-qubit state which is initially in
 	the zero computational basis to a the zero fourier basis."""
@@ -138,33 +161,45 @@ def add_k_fourier(k, circuit, n):
 	# return circuit to user
 	return circuit
 
-""" method used to initialize qubit state as fourier basis corresponding to bit string
-	passed to the method. """
-def QFT_encoding(x):
 
-	# embed x as the computational basis
-	n = len(x)
-	s = qubit_encoding(x)
+""" method for encoding bit-string in initial quantum state as wave amplitudes """
+def amp_encoding (x):
 
-	# convert the bit string to an integer, embed the integer in the fourier basis
-	k = s.sampling(1)
-	cQFT = QuantumCircuit(n)
-	cQFT = qft_init(cQFT, n)
-	cQFT = add_k_fourier(k[0], cQFT, n)
+	# TODO :: there would be a few ways to speed this method up
+	# 	- storing amplitudes, rather than calculating them each iteration
+	# 	- use np.arrays to quick calculate the norm
 
+	# check that the length of the bit string passed to the method matches
+	# the appropriate length based on the number of qubits in the circuit
+	vec_len = len(x)
+	n = int(math.log(vec_len, 2))
 
-	# reset state, return the fourier basis to the user
-	s = QuantumState(n)
-	cQFT.update_quantum_state(s)
-	return s
+	# calculate the norm of the bit string
+	norm = 0.
+	for i in x:
+		norm += i ** 2
+	norm = math.sqrt(norm)
+
+	# initialize the numpy array that will contain the amplitude encoded
+	# store the amplitude normilized state vector
+	a = np.array([])
+	for i in x:
+		a = np.append(a, [i / norm])
+
+	# initialize the qubits using the state vector
+	state = QuantumState(n)
+	state.load(a)
+
+	return state
 
 """ TODO :: add method to quantifying qubit circuits (?? forgot what I meant by this) """
 
 
 ## CIRCUIT ARCHITECTURE CLASS METHODS ## 
 class ClassificationCircuit (ABC):
-	def __init__(self, qubits):
+	def __init__(self, qubits, state_prep_method):
 		self.qubits = qubits
+		self.state_prep = state_prep_method
 		self.set_layers() # number of layers depends on the circuit architecture
 		self.set_observable()
 		self.set_QFT_status() # initialize QFT operation, default is off
@@ -189,12 +224,15 @@ class ClassificationCircuit (ABC):
 		W = Wb[:-1]
 
 		# initialize qubit state
-		if self.QFT_status ==  True:
+		if self.state_prep ==  "QFT_encoding":
 			# embed string as fourier basis
 			state = QFT_encoding(x)
+		elif self.state_prep == "AmplitudeEmbedding":
+			# embed state as amplitudes
+			state = amp_encoding(x)
 		else:
 			# default is embed bit string as computational basis
-			state = qubit_encoding(x)
+			state = basis_encoding(x)
 
 		# apply circuit layers to quantum state
 		for i in range(self.layers):

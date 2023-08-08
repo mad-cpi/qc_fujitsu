@@ -83,6 +83,9 @@ def optimize(vqc):
 	# initialize the iteration count for the circuit
 	vqc.initialize_optimization_iterations()
 
+	# TODO :: translate bit strings to state vectors that can be loaded directly
+	# TODO :: set the number of times that the 
+
 	# optimize the weights associated with the circuit
 	W_init = vqc.W
 	opt = minimize (vqc.cost_function, vqc.W, method = 'Powell', bounds = vqc.B)
@@ -91,7 +94,10 @@ def optimize(vqc):
 	vqc.W = opt.x
 	print("\nFinal value of error function after optimization: {:0.3f}.".format(opt.fun))
 
-	# TODO :: save weights!!
+	# TODO :: save weights after optimization has ended
+
+	# TODO :: return the stats for the circuit optimization process
+	return None
 
 """ method used to define the error associated with a set of circuit weights,
 	calculated by find the norm between a set of predict classifications and
@@ -191,24 +197,24 @@ class VQC:
 	""" method used to initialize method for qubit state preperation. 
 		The state preperation method determines the number of classical
 		bits that should be used to load the dataset. """
-	def initialize_qubit_state_prep_method(self, state_prep, default):
+	def initialize_qubit_state_prep_method(self, state_prep_method, default):
 		# if no state prep specification was provided by the user
-		if state_prep == None:
+		if state_prep_method == None:
 			# assign the default
-			state_prep = default
+			state_prep_method = default
 
 		# assign the state prep method
-		if state_prep == "BasisEmbedding":
+		if state_prep_method == "BasisEmbedding":
 			self.state_prep = "BasisEmbedding"
 			# for basis embeddeding, the number of classical bits is the same as
 			# the number of qubits
 			self.classical_bits = self.qubits
-		elif state_prep == "AmplitudeEmedding":
-			self.state_prep = "AmplitudeEmedding"
+		elif state_prep_method == "AmplitudeEmbedding":
+			self.state_prep = "AmplitudeEmbedding"
 			# for amplitude embedding, the number of classical bits is 2 ^ N_qubits
 			self.classical_bits = 2 ** self.qubits
 		else:
-			print(f"TODO :: Implement {state_prep} qubit state preperation method.")
+			print(f"TODO :: Implement {state_prep_method} qubit state preperation method.")
 			exit()
 
 	""" method used to the set the number used to enumerate the number
@@ -252,7 +258,7 @@ class VQC:
 				radius = fp_radius, nBits = self.classical_bits, useFeatures = True).ToBitString() for x in smi]
 
 		# translate fingerprint vectors to binary strings
-		self.X = np.zeros((len(fp), self.qubits), dtype=int)
+		self.X = np.zeros((len(fp), self.classical_bits), dtype=int)
 		for i in range(len(fp)):
 			# print(fp[i])
 			for j in range(self.qubits):
@@ -271,7 +277,7 @@ class VQC:
 				print("X = {}, Y = {:.2f}".format(self.X[i], self.Y[i]))
 
 	""" method used to initialize the VQC circuit architecture, unitary weights. """
-	def initialize_circuit(self, circuit = None, QFT = False, bit_correlation = False):
+	def initialize_circuit(self, circuit = None, bit_correlation = False):
 
 		## TODO :: prevent this method for being called if there is no data associated with the object
 
@@ -282,17 +288,12 @@ class VQC:
 
 		# initialize the anstaz object 
 		if circuit == 'VC':
-			self.circuit = VariationalClassifier(self.qubits)
+			self.circuit = VariationalClassifier(self.qubits, self.state_prep)
 		elif circuit == 'TTN':
-			self.circuit = TreeTensorNetwork(self.qubits)
+			self.circuit = TreeTensorNetwork(self.qubits, self.state_prep)
 		else:
 			print(f"ERROR :: {circuit} circuit ansatz not implemented yet.")
 			exit()
-
-		if QFT == True:
-			# if the QFT status is true
-			# turn QFT embedding for the circuit on
-			self.circuit.set_QFT_status(status = QFT)
 
 		# initialize unitary weights and their upper and lower bounds
 		# according to the number of qubits and circuit architecture
