@@ -57,7 +57,7 @@ default_fp_radius = 3
 """ method used to optimize the current weights of a variational circuit according
 	to the dataset sotored within the variational classification circuit
 	object. """
-def optimize(vqc):
+def optimize(vqc, save_dir = None, title = None):
 
 	# check that data has been loaded into the circiut
 	if vqc.X is None or vqc.Y is None:
@@ -83,9 +83,21 @@ def optimize(vqc):
 	vqc.W = opt.x
 	print("\nFinal value of error function after optimization: {:0.3f}.".format(opt.fun))
 
-	# TODO :: save weights after optimization has ended
+	# if the user has provided a save path, save the stats to a file
+	if save_dir is not None:
 
-	# TODO :: return the stats for the circuit optimization process
+		# check that the path exists
+		if not os.path.exists(save_dir):
+			os.mkdir(save_dir)
+
+		# create dataframe
+		df = pd.DataFrame(data = {'cost': self.opt_cost, 'cross-entropy': self.opt_ce, 'accuracy': self.opt_acc})
+
+		# save file
+		if title is None:
+			title = 'VQC'
+		save_file = save_dir + title + '_optimiazation.csv'
+		df.to_csv(save_file, index = False)
 	return None
 
 """ method used to define the error associated with a set of circuit weights,
@@ -234,6 +246,10 @@ class VQC:
 	def initialize_optimization_iterations(self):
 		# set the counter to zero
 		self.n_it = 0
+		# initialize the arrays that contain the optimization stats
+		self.opt_cost = [] # cumulation of cost scores during model optimization
+		self.opt_ce = [] # cumulation of cross entropy scores during optimization
+		self.opt_acc = [] # cumulation of accuracy scores during optimization
 
 	""" method used to load smile strings and activity classifications
 		from csv file. """
@@ -336,7 +352,10 @@ class VQC:
 
 		# calculate the cost and accuracy of the weights
 		norm, acc, ce = error(Y_pred, Y_class)
-		self.n_it += 1
+		self.n_it += 1 # increment iteration
+		self.opt_cost.append(norm)
+		self.opt_ce.append(ce)
+		self.opt_acc.append(acc)
 
 		# report the status of the model predictions to the user
 		print("Iteration: {:5d} | Cost: {:0.5f} | Cross-Entropy: {:0.5f} | Accuracy : {:0.5f}"\
@@ -348,7 +367,7 @@ class VQC:
 	""" method that makes predictions for the data set that is loaded into 
 		the variational qunatum circuit. returns array with with "probability-like"
 		predictions for each compounds, scaled from 0 - 1 """
-	def predict(self, save_dir = None, title = None, class_dist = False, ROC_plot = False):
+	def predict(self):
 
 		# inform the user
 		print(f"\nMaking predictions for the data stored within the circuit ..")
@@ -366,22 +385,6 @@ class VQC:
 
 			 # add the prediction to the list
 			 self.P.append(y)
-
-		# score the predictions
-		# # self.score()
-
-		# if class_dist == True or ROC_plot == True:
-
-		# 	# check that a path has been provided, and that it exists
-		# 	if not os.path.exists(save_path):
-		# 		# if the path / directory does not exist, generate it
-		# 		os.mkdir(save_path)
-
-		# 	# generate model stats
-
-		# 	# generate class distribution plot
-
-		# 	# generate ROC plot
 
 		# return the scaled predictions to the user
 		return (self.P + np.ones(len(self.P))) / 2.
