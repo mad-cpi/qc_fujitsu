@@ -2,12 +2,15 @@ import sys, os
 import pandas as pd
 import numpy as np
 import math
-# used for model saving and loadingvv
+# used for model saving and loading
 import yaml
 # rdkit libraries
 from rdkit import Chem
 from rdkit.Chem import AllChem, rdFingerprintGenerator
 from scipy.optimize import minimize
+# used to calculate model stats
+from sklearn.metrics import accuracy_score, f1_score, cohen_kappa_score, matthews_corrcoef, \
+	precision_score, recall_score, roc_curve, auc 
 # VQC circuit architectures
 from fujitsu.VQC.circuit_architecture import VariationalClassifier, TreeTensorNetwork
 
@@ -231,22 +234,22 @@ class VQC:
 
 	""" method used to load smile strings and activity classifications
 		from csv file. """
-	def load_data (self, path, smile_col, class_col, BAE = False, verbose = False):
+	def load_data (self, load_path, smile_col, class_col, BAE = False, verbose = False):
 
 		# check that the path to the specified file exists
-		if not os.path.exists(path):
-			print(f" PATH ({path}) does not exist. Cannot load dataset.")
+		if not os.path.exists(load_path):
+			print(f" PATH ({load_path}) does not exist. Cannot load dataset.")
 			exit()
 
 		# inform user, loaded csv
-		print(f"\nLoading SMILES from ({path}) ..")
-		df = pd.read_csv(path)
+		print(f"\nLoading SMILES from ({load_path}) ..")
+		df = pd.read_csv(load_path)
 		# check that headers are in the dataframe, load data
 		if not smile_col in df.columns:
-			print(f" SMILE COL ({smile_col}) not in FILE ({path}). Unable to load smile strings.")
+			print(f" SMILE COL ({smile_col}) not in FILE ({load_path}). Unable to load smile strings.")
 			exit()
 		elif not class_col in df.columns:
-			print(f" CLASSIFICATION COL ({class_col}) not in FILE ({path}). Unable to load classification data.")
+			print(f" CLASSIFICATION COL ({class_col}) not in FILE ({load_path}). Unable to load classification data.")
 			exit()
 
 		# load dataset, inform user
@@ -282,7 +285,7 @@ class VQC:
 
 		# if the user wants to write the data set to the
 		if verbose:
-			print(f"\nLoading DATA ({path}) .. \n")
+			print(f"\nLoading DATA ({load_path}) .. \n")
 			for i in range(len(self.Y)):
 				print("X = {}, Y = {:.2f}".format(self.X[i], self.Y[i]))
 
@@ -342,7 +345,7 @@ class VQC:
 	""" method that makes predictions for the data set that is loaded into 
 		the variational qunatum circuit. returns array with with "probability-like"
 		predictions for each compounds, scaled from 0 - 1 """
-	def predict(self):
+	def predict(self, save_path = None, title = None, class_dist = False, ROC_plot = False):
 
 		# inform the user
 		print(f"\nMaking predictions for the data stored within the circuit ..")
@@ -362,10 +365,79 @@ class VQC:
 			 self.P.append(y)
 
 		# score the predictions
-		# self.score()
+		# # self.score()
+
+		# if class_dist == True or ROC_plot == True:
+
+		# 	# check that a path has been provided, and that it exists
+		# 	if not os.path.exists(save_path):
+		# 		# if the path / directory does not exist, generate it
+		# 		os.mkdir(save_path)
+
+		# 	# generate model stats
+
+		# 	# generate class distribution plot
+
+		# 	# generate ROC plot
 
 		# return the scaled predictions to the user
 		return (self.P + np.ones(len(self.P))) / 2.
+
+	""" use the predictions made by the circuit to generate statistics about the
+		performance of the circuit as a model.
+
+		NOTE: circuit does not check it the values that the circuit made predictions
+		for were utilized by the model for training. """
+	def get_stats (self, save_path = None, title = None):
+
+		# check that a path was specified, and that the circuit already has 
+		# made predictions for a set
+		if self.P is None:
+			# circuit must already have made predictions
+			print(f"Error :: circit has not made any predictions.")
+			exit()
+
+		if save_path is None:
+			# user must specify save path
+			print(f"Error :: save_path must be specified.")
+		elif not os.path.exists(save_path):
+			# check that the path exists
+			# if it does not, make the path
+			os.mkdir(save_path)
+
+		# calculate class label and predictions according to values stored with circuit
+		Y_prob = [((p + 1.) / 2.) for p in self.P]
+		Y_pred = [1 if p >= 0. else 0 for p in self.P]
+		Y_true = [1 if c >= 0. else 0 for c in self.Y]
+
+		# get stats
+		stat_dict = {}
+		stat_dict['acc'] = accuracy_score(Y_true, Y_pred)
+		stat_dict['f1s'] = f1_score(Y_true, Y_pred)
+		stat_dict['cks'] = cohen_kappa_score(Y_true, Y_pred)
+		stat_dict['mcc'] = matthews_corrcoef(Y_true, Y_pred)
+		stat_dict['pre'] = precision_score(Y_true, Y_pred)
+		stat_dict['rec'] = recall_score(Y_true, Y_pred) 
+
+		try:
+			fpr, tpr, __ = roc_curve(Y_true, Y_prob)
+			# stat_dict['fpr'] = fpr 
+			# stat_dict['tpr'] = tpr
+			roc_auc = auc(fpr, tpr)
+			stat_dict['roc_auc'] = roc_auc
+		except ValueError as ex:
+			log.error(ex)
+
+		# save the stats to a csv
+		if title is not None:
+			file = title + '_stats.csv'
+		else:
+			file = 'VQC_stats.csv'
+		save_file = save_path + file
+		df = pd.DataFrame(stat_dict, index = [0])
+		df.to_csv(save_file)
+
+		return stat_dict
 
 	""" method that stores the current state of the circuit as a dictionary. """
 	def gen_dict(self):
