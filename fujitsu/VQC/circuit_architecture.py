@@ -161,7 +161,6 @@ def add_k_fourier(k, circuit, n):
 	# return circuit to user
 	return circuit
 
-
 """ method for encoding bit-string in initial quantum state as wave amplitudes """
 def amp_encoding (x):
 
@@ -257,13 +256,13 @@ class ClassificationCircuit (ABC):
 			# initialize qubit state using the bit string
 			if self.state_prep ==  "QFT_encoding":
 				# embed string as fourier basis
-				state = QFT_encoding(x)
+				state = QFT_encoding(bit_string)
 			elif self.state_prep == "AmplitudeEmbedding":
 				# embed state as amplitudes
-				state = amp_encoding(x)
+				state = amp_encoding(bit_string)
 			else:
 				# default is embed bit string as computational basis
-				state = basis_encoding(x)
+				state = basis_encoding(bit_string)
 		else:
 			# use the state vector to load the initial qubit state
 			state = QuantumState(self.qubits)

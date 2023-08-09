@@ -54,6 +54,11 @@ default_fp_radius = 3
 	object. """
 def optimize(vqc):
 
+	# check that data has been loaded into the circiut
+	if vqc.X is None or vqc.Y is None:
+		print(f"Error :: Must load data into circuit before optimization.")
+		exit()
+
 	# initialize the iteration count for the circuit
 	vqc.initialize_optimization_iterations()
 
@@ -80,7 +85,7 @@ def optimize(vqc):
 
 """ method used to define the error associated with a set of circuit weights,
 	calculated by find the norm between a set of predict classifications and
-	their real values."""
+	their real values. """
 def error (predictions, classifications):
 	# tolerance used to measure if a prediction is correct
 	tol = 5e-2
@@ -148,10 +153,11 @@ class VQC:
 		self.circuit = None
 
 		# initialize X and Y data sets as empty
-		self.X = None
-		self.Y = None
+		self.X = None # bit strings / vectors
+		self.Y = None # classification of X, as one of two catagories
+		self.P = None # predictions make by circuit that use X to determine Y
 		self.SV = None
-		# array that contains state vectors used to initialize 
+		# array that contains state vectors used to initialize  
 		# quantum state during circuit calculations
 
 		# array containing weights of unitary operations
@@ -333,6 +339,34 @@ class VQC:
 		# return the value to the user
 		return ce
 
+	""" method that makes predictions for the data set that is loaded into 
+		the variational qunatum circuit. returns array with with "probability-like"
+		predictions for each compounds, scaled from 0 - 1 """
+	def predict(self):
+
+		# inform the user
+		print(f"\nMaking predictions for the data stored within the circuit ..")
+
+		# initialize the predictions, which are stored within the objecty
+		self.P = []
+
+		for i in range(len(self.X)):
+
+			 # bit vector
+			 x = self.X[i]
+
+			 # make a prediction with the weights that are stored within the circuit
+			 y = self.circuit.classify(self.W, bit_string = x)
+
+			 # add the prediction to the list
+			 self.P.append(y)
+
+		# score the predictions
+		# self.score()
+
+		# return the scaled predictions to the user
+		return (self.P + np.ones(len(self.P))) / 2.
+
 	""" method that stores the current state of the circuit as a dictionary. """
 	def gen_dict(self):
 
@@ -383,15 +417,15 @@ class VQC:
 		self.fp_radius = vqc_dict['fp_radius']
 
 		# create an empty array that is the weights length specified in the dictionary
-		self.W = [[] for i in range(vqc_dict['n_weights'])]
-		for i in len(self.W):
-			self.W[i] = vqc_dict['weights_{:03d}'.format(i)]
+		self.W = np.empty((vqc_dict['n_weights']))
+		for i in range(len(self.W)):
+			self.W[i] = float(vqc_dict['weights_{:03d}'.format(i)])
 
 		# create and empty array this is the boundaries length specified in the dictionary
 		self.B = [[[], []] for i in range(vqc_dict['n_bounds'])]
-		for i in len(self.B):
-			self.B[i][0] = vqc_dict['bounds_{:03d}_0'.format(i)]
-			self.B[i][1] = vqc_dict['bounds_{:03d}_1'.format(i)]
+		for i in range(len(self.B)):
+			self.B[i][0] = float(vqc_dict['bounds_{:03d}_0'.format(i)])
+			self.B[i][1] = float(vqc_dict['bounds_{:03d}_1'.format(i)])
 
 	""" method used to save the state of a circuit in a way that the exact same
 		circuit can be reloaded. This includes the circuits weights (esp. after
@@ -420,9 +454,9 @@ class VQC:
 		if not os.path.exists(load_path):
 			print(f"ERROR :: Unable to load circuit. Path ({load_path}) does not exist.")
 
-		vqc_dict = yaml.load(load_path)
+		with open(load_path, 'r') as file:
+			vqc_dict = yaml.safe_load(file)
 		self.load_dict(vqc_dict)
-
 
 	""" method used to write bit strings and classification to external file."""
 	def write_data (self, path):
