@@ -2,6 +2,8 @@ import sys, os
 import pandas as pd
 import numpy as np
 import math
+import seaborn as sns
+import matplotlib.pyplot as plt
 # used for model saving and loading
 import yaml
 # rdkit libraries
@@ -132,6 +134,7 @@ def error (predictions, classifications):
 	accuracy = accuracy / len(predictions)
 	ce = ce / len(predictions)
 	return norm, accuracy, ce
+
 
 
 ## VQC CLASS METHODS ##
@@ -345,7 +348,7 @@ class VQC:
 	""" method that makes predictions for the data set that is loaded into 
 		the variational qunatum circuit. returns array with with "probability-like"
 		predictions for each compounds, scaled from 0 - 1 """
-	def predict(self, save_path = None, title = None, class_dist = False, ROC_plot = False):
+	def predict(self, save_dir = None, title = None, class_dist = False, ROC_plot = False):
 
 		# inform the user
 		print(f"\nMaking predictions for the data stored within the circuit ..")
@@ -388,27 +391,36 @@ class VQC:
 
 		NOTE: circuit does not check it the values that the circuit made predictions
 		for were utilized by the model for training. """
-	def get_stats (self, save_path = None, title = None):
+	def get_stats (self, save_dir = None, title = None):
 
-		# check that a path was specified, and that the circuit already has 
-		# made predictions for a set
+		# check that the circuit already has made predictions for a set
 		if self.P is None:
 			# circuit must already have made predictions
-			print(f"Error :: circit has not made any predictions.")
+			print(f"Error :: circuit has not made any predictions.")
 			exit()
 
-		if save_path is None:
-			# user must specify save path
-			print(f"Error :: save_path must be specified.")
-		elif not os.path.exists(save_path):
+		# if a path was specified by the user,
+		# check that it exists
+		if save_dir is not None:
 			# check that the path exists
-			# if it does not, make the path
-			os.mkdir(save_path)
+			if not os.path.exists(save_dir):
+				# if it does not, make the path
+				os.mkdir(save_dir)
+
+		# generate file names
+		if title is not None:
+			title = 'VQC'
+		file_stats = title + '_stats.csv'
+		file_pred = title + '_true_pred.csv'
+		file_roc = title + '_roc.csv'
 
 		# calculate class label and predictions according to values stored with circuit
 		Y_prob = [((p + 1.) / 2.) for p in self.P]
 		Y_pred = [1 if p >= 0. else 0 for p in self.P]
 		Y_true = [1 if c >= 0. else 0 for c in self.Y]
+		df_pred = pd.DataFrame(data = {'y_true': Y_true, 'y_pred': Y_pred, 'y_prob': Y_prob})
+		if save_dir is not None:
+			df_pred.to_csv(save_dir + file_pred, index = False)
 
 		# get stats
 		stat_dict = {}
@@ -421,21 +433,17 @@ class VQC:
 
 		try:
 			fpr, tpr, __ = roc_curve(Y_true, Y_prob)
-			# stat_dict['fpr'] = fpr 
-			# stat_dict['tpr'] = tpr
 			roc_auc = auc(fpr, tpr)
 			stat_dict['roc_auc'] = roc_auc
+			df_roc = pd.DataFrame(data = {'fpr': fpr, 'tpr': tpr})
+			if save_dir is not None:
+				df_roc.to_csv(save_dir + file_roc, index = False)
 		except ValueError as ex:
 			log.error(ex)
 
-		# save the stats to a csv
-		if title is not None:
-			file = title + '_stats.csv'
-		else:
-			file = 'VQC_stats.csv'
-		save_file = save_path + file
-		df = pd.DataFrame(stat_dict, index = [0])
-		df.to_csv(save_file)
+		if save_dir is not None:
+			df_stat = pd.DataFrame(stat_dict, index = [0])
+			df_stat.to_csv(save_dir + file_stats, index = False)
 
 		return stat_dict
 
