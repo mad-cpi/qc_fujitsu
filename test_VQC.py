@@ -14,7 +14,7 @@ for i in range(5):
 	vqc = VQC(qubits = 12, state_prep = "AmplitudeEmbedding", fp_radius = 6)
 
 	# load training data
-	vqc.load_data(path = train_data, smile_col = 'SMILE', class_col = 'class', verbose = False)
+	vqc.load_data(load_path = train_set, smile_col = 'SMILE', class_col = 'class', verbose = False)
 	vqc.initialize_circuit(circuit = 'VC', bit_correlation = False)
 
 	# train circuit, save circuit weights before and after training
@@ -23,7 +23,7 @@ for i in range(5):
 	vqc.save_circuit(save_to = path, save_as = title + 'opt')
 
 	# load testing set, make predictions and score model performance
-	vqc.load_data(path = test_set, smile_col = 'SMILE', class_col = 'class', verbose = False)
+	vqc.load_data(load_path = test_set, smile_col = 'SMILE', class_col = 'class', verbose = False)
 	vqc.predict()
 	stats = vqc.get_stats(save_dir = path, title = title)
 
