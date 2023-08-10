@@ -19,7 +19,7 @@ for i in range(5):
 
 	# train circuit, save circuit weights before and after training
 	vqc.save_circuit(save_to = path, save_as = title + 'init')
-	optimize(vqc, save_dir = path, title = 'test')
+	optimize(vqc, save_dir = path, title = 'test', max_opt_steps = 5000)
 	vqc.save_circuit(save_to = path, save_as = title + 'opt')
 
 	# load testing set, make predictions and score model performance

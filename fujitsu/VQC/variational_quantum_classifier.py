@@ -57,7 +57,7 @@ default_fp_radius = 3
 """ method used to optimize the current weights of a variational circuit according
 	to the dataset sotored within the variational classification circuit
 	object. """
-def optimize(vqc, save_dir = None, title = None):
+def optimize(vqc, save_dir = None, title = None, max_opt_steps = None):
 
 	# check that data has been loaded into the circiut
 	if vqc.X is None or vqc.Y is None:
@@ -71,13 +71,16 @@ def optimize(vqc, save_dir = None, title = None):
 	print(f"\nTranslating fingerprints to quantum state vectors ..")
 	vqc.SV = vqc.circuit.batch_state_prep(vqc.X)
 
-	# TODO :: set the number of times that the optimization function stores
-	# 		stats associated with the optimization function
+	opts_dict = {}
+	if max_opt_steps is not None:
+		# chceck that the value is positive
+		if max_opt_steps > 0:
+			opts_dict['maxiter'] = max_opt_steps
 
 	# optimize the weights associated with the circuit
 	W_init = vqc.W
 	print(f"Optimizing VQC circuit ..")
-	opt = minimize (vqc.cost_function, vqc.W, method = 'Powell', bounds = vqc.B)
+	opt = minimize (vqc.cost_function, vqc.W, method = 'Powell', bounds = vqc.B, options = opts_dict)
 
 	# assign the optimal weights to the classification circuit
 	vqc.W = opt.x
