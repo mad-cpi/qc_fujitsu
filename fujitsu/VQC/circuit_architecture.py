@@ -10,6 +10,11 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 ## PARAMETERS ## 
+# maximum number of qubits that can used to initialize a circuit on
+# a desktop computer. If the number of qubits passed to a circuit is 
+# greater than this number, the circuit will attempt to import mpi4py,
+# which is only avalible on the quantum simulator
+max_desktop_qubits = 24
 # average of random numbers generation for initial unitary weights
 norm_avg = 0.
 # standard deviation of random numbers generated for initial unitary weights
@@ -196,11 +201,30 @@ def amp_encoding (x):
 ## CIRCUIT ARCHITECTURE CLASS METHODS ## 
 class ClassificationCircuit (ABC):
 	def __init__(self, qubits, state_prep_method):
-		self.qubits = qubits
+		self.set_circuit_qubits(qubits)
 		self.state_prep = state_prep_method
 		self.set_layers() # number of layers depends on the circuit architecture
 		self.set_observable()
 		self.set_QFT_status() # initialize QFT operation, default is off
+
+	# set the number of circuit qubits
+	def set_circuit_qubits(qubits):
+
+		if qubits > max_desktop_qubits:
+
+			# import mpi4py, check rank
+			import mpi4py
+			comm = MPI.COMM_WORLD
+			rank = comm.Get_rank()
+			print(rank)
+			exit()
+
+			# use rank to determine how many qubits can be initialized
+
+		else:
+
+			# assign the qubits to the circuit and proceed
+			self.qubits = qubits
 
 	## generic circuit architecture circuit methods
 
@@ -448,7 +472,7 @@ class TreeTensorNetwork(ClassificationCircuit):
 		self.obs = Observable(self.qubits)
 		# the qubit which is obserbed depends on the overall number of qubits
 		operator = 'Z {:d}'.format(10)
-		self.obs.add_operator(1, operator)
+		self.obs.add_operator(1., operator)
 
 	""" intialize weights of classification circuit according to the TTN circuit
 		architecture. """

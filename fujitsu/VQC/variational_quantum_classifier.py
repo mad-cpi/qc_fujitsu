@@ -24,7 +24,7 @@ from VQC.circuit_architecture import VariationalClassifier, TreeTensorNetwork
 # max number of qubits that can be assigned
 # to the classification circuit (for safety,
 # on any desktop this number shouldnt be greater than 20)
-max_qubits = 20
+# max_qubits = 26
 
 # minimum number of qubits that can be assigned
 # to any classification circuit
@@ -191,14 +191,14 @@ class VQC:
 
 		# check that the number of qubits assigned to
 		# the VQC is acceptable
-		if (qubits <= max_qubits and qubits >= min_qubits):
+		if (qubits >= min_qubits):
 			# assign the qubits
 			self.qubits = qubits
 		else:
 			# the number is outside of the range
 			# throw an error
 			print(f" Error assigning qubits. Number passed to method outside of the allowable range.")
-			print(f" Q ({qubits}) is outside of Q_MIN ({min_qubits}) and Q_MAX ({max_qubits}).")
+			print(f" Q ({qubits}) is outside of Q_MIN ({min_qubits}).")
 			exit()
 
 	""" method used to initialize method for qubit state preperation. 
@@ -463,9 +463,9 @@ class VQC:
 		vqc_dict['qubits'] = self.qubits
 		vqc_dict['qubit_state_prep'] = self.state_prep
 		if type(self.circuit) is VariationalClassifier:
-			vqc_dict['ansatz'] = 'VariationalClassifier'
+			vqc_dict['ansatz'] = 'VC'
 		elif type(self.circuit) is TreeTensorNetwork:
-			vqc_dict['ansatz'] = 'TreeTensorNetwork'
+			vqc_dict['ansatz'] = 'TTN'
 		else:
 			vqc_dict['ansatz'] = 'NA'
 		vqc_dict['fp_type'] = self.fp_type
@@ -491,16 +491,16 @@ class VQC:
 	def load_dict(self, vqc_dict):
 
 		# assign values to circuit according to data stored in dictionary
-		self.qubits = vqc_dict['qubits']
-		self.state_prep = vqc_dict['qubit_state_prep']
-		if vqc_dict['ansatz'] == 'VariationalClassifier':
+		self.sqt_VQC_qubits(vqc_dict['qubits'])
+		self.set_qubit_state_prep_method(state_prep_method = vqc_dict['qubit_state_prep'], \
+			default = default_state_prep_method)
+		if vqc_dict['ansatz'] == 'VC':
 			self.circuit = VariationalClassifier(self.qubits, self.state_prep)
-		elif vqc_dict['ansatz'] == 'TreeTensorNetwork':
+		elif vqc_dict['ansatz'] == 'TTN':
 			self.circuit = TreeTensorNetwork(self.qubits, self.state_prep)
 		else:
 			print(f"Unable to load circuit architecture {vqc_dict['ansatz']}")
-		self.fp_type = vqc_dict['fp_type']
-		self.fp_radius = vqc_dict['fp_radius']
+		self.set_fingerprint(fp_type = vqc_dict['fp_type'], fp_radius = vqc_dict['fp_radius'])
 
 		# create an empty array that is the weights length specified in the dictionary
 		self.W = np.empty((vqc_dict['n_weights']))
