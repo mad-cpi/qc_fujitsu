@@ -2,7 +2,6 @@ import sys, os
 import math, cmath
 import pandas as pd
 import numpy as np
-import torch
 from numpy import pi
 from qulacs import QuantumState, QuantumCircuit, Observable
 from qulacs.gate import RX, RY, RZ, CNOT, H, DenseMatrix, SWAP

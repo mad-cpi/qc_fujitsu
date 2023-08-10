@@ -14,7 +14,7 @@ from scipy.optimize import minimize
 from sklearn.metrics import accuracy_score, f1_score, cohen_kappa_score, matthews_corrcoef, \
 	precision_score, recall_score, roc_curve, auc 
 # VQC circuit architectures
-from fujitsu.VQC.circuit_architecture import VariationalClassifier, TreeTensorNetwork
+from VQC.circuit_architecture import VariationalClassifier, TreeTensorNetwork
 
 ## PARAMETERS ## 
 
