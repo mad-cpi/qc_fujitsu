@@ -97,6 +97,7 @@ def load_test_activity_data():
 
 	# load Y array (activity)
 	Y = np.array(data['single-class-label'])
+	Y = Y * 2 - np.ones(len(Y)) # shift label form [0, 1] to [-1, 1]
 	
 	return X, Y
 
@@ -427,15 +428,15 @@ def layer (w):
 		# in the schulgin data set, the first 5 features
 		# in the 16 bit fingerprint are all the same for the 
 		# entire dataset, so do not apply control bits to those features
-		# if i >= 5 or i == (n-1):
-		# target bit
-		j = i + 1 
-		if j >= n:
-			j = 0
-		# apply control bit to target bit
-		gate = CNOT (i, j)
-		# add to circuit
-		circuit.add_gate(gate)
+		if i >= 5 or i == (n-1):
+			# target bit
+			j = i + 1 
+			if j >= n:
+				j = 0
+			# apply control bit to target bit
+			gate = CNOT (i, j)
+			# add to circuit
+			circuit.add_gate(gate)
 
 	return circuit
 
@@ -508,7 +509,8 @@ def cost_function (W):
 		print("Iteration: {:5d} | Cost: {:0.5f} | Accuracy : {:0.5f}"\
 			.format(n_it, cost, acc))
 
-	return cost
+	# return cost
+	return 1. - acc
 
 ## ARGUMENTS ## 
 # number of qubits in quantum circuit

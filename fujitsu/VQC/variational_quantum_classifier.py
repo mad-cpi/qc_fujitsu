@@ -1,11 +1,20 @@
 import sys, os
 import pandas as pd
 import numpy as np
+import math
+import seaborn as sns
+import matplotlib.pyplot as plt
+# used for model saving and loading
+import yaml
 # rdkit libraries
 from rdkit import Chem
 from rdkit.Chem import AllChem, rdFingerprintGenerator
+from scipy.optimize import minimize
+# used to calculate model stats
+from sklearn.metrics import accuracy_score, f1_score, cohen_kappa_score, matthews_corrcoef, \
+	precision_score, recall_score, roc_curve, auc 
 # VQC circuit architectures
-from fujitsu.VQC.circuit_architecture import VC
+from fujitsu.VQC.circuit_architecture import VariationalClassifier, TreeTensorNetwork
 
 ## PARAMETERS ## 
 
@@ -24,19 +33,8 @@ min_qubits = 1
 # default type of circuit used for VQC
 default_VQC_circuit = 'VC'
 
-# default thresholding status
-default_threshold_status = False
-
-# defauly thresholding amount, if none is specified
-# when thresholding is turned on
-default_threshold = 0.02
-
-# default batching status
-default_batch_status = False
-
-# default batch size, as a precentage, when batching
-# is turned on, if none is specified
-default_batch_size = 0.8
+# default method used to encode the qubit state
+default_state_prep_method = 'BasisEmbedding'
 
 
 ## fingerprinting specifications ## 
@@ -54,27 +52,131 @@ default_fp_radius = 3
 
 ## TODO :: add VQC exception
 
+## VQC OPTIMIZATION METHODS ##
 
-## VQC CLASS AND METHODS ##
+""" method used to optimize the current weights of a variational circuit according
+	to the dataset sotored within the variational classification circuit
+	object. """
+def optimize(vqc, save_dir = None, title = None):
+
+	# check that data has been loaded into the circiut
+	if vqc.X is None or vqc.Y is None:
+		print(f"Error :: Must load data into circuit before optimization.")
+		exit()
+
+	# initialize the iteration count for the circuit
+	vqc.initialize_optimization_iterations()
+
+	# translate bit strings to state vectors before processing
+	print(f"\nTranslating fingerprints to quantum state vectors ..")
+	vqc.SV = vqc.circuit.batch_state_prep(vqc.X)
+
+	# TODO :: set the number of times that the optimization function stores
+	# 		stats associated with the optimization function
+
+	# optimize the weights associated with the circuit
+	W_init = vqc.W
+	print(f"Optimizing VQC circuit ..")
+	opt = minimize (vqc.cost_function, vqc.W, method = 'Powell', bounds = vqc.B)
+
+	# assign the optimal weights to the classification circuit
+	vqc.W = opt.x
+	print("\nFinal value of error function after optimization: {:0.3f}.".format(opt.fun))
+
+	# if the user has provided a save path, save the stats to a file
+	if save_dir is not None:
+
+		# check that the path exists
+		if not os.path.exists(save_dir):
+			os.mkdir(save_dir)
+
+		# create dataframe
+		df = pd.DataFrame(data = {'cost': self.opt_cost, 'cross-entropy': self.opt_ce, 'accuracy': self.opt_acc})
+
+		# save file
+		if title is None:
+			title = 'VQC'
+		save_file = save_dir + title + '_optimiazation.csv'
+		df.to_csv(save_file, index = False)
+	return None
+
+""" method used to define the error associated with a set of circuit weights,
+	calculated by find the norm between a set of predict classifications and
+	their real values. """
+def error (predictions, classifications):
+	# tolerance used to measure if a prediction is correct
+	tol = 5e-2
+	# initialize norm, accuracy, cross entropy measurements
+	norm = 0.
+	accuracy = 0
+	ce = 0.
+	# compare all labels and predictions
+	for i in range(len(predictions)):
+
+		# pull the prediction and classification values
+		p = predictions[i]
+		c = classifications[i]
+
+		# calculate model accuracy
+		if abs(c - np.sign(p)) < tol:
+			accuracy = accuracy + 1
+
+		# rescale classification and prediction to values between zero and one
+		p = (p / 2) + 0.5
+		c = (c / 2) + 0.5
+
+		# calculate binary cross_entropy loss
+		# coarse grain the prediction values to avoid log(0) calculations
+		if p < tol:
+			# if the prediction is within the tolerance of the value 0
+			# replace the prediction with one within the range of the tolerance
+			p = tol
+		elif p > (1. - tol):
+			# if the prediction is within the tolerance of the value 1.
+			# replace the prediction with a value at the limit of the tolerance
+			p = 1. - tol
+
+		ce += -(c * math.log(p) + (1 - c) * math.log(1 - p))
+
+		# calculate euclidean norm loss
+		norm = norm + (c - p) ** 2
+
+	# normalize norm, accuracy, cross entropy by the data size
+	norm = norm / len(predictions)
+	accuracy = accuracy / len(predictions)
+	ce = ce / len(predictions)
+	return norm, accuracy, ce
+
+
+
+## VQC CLASS METHODS ##
 # variational quantum classifier 
 class VQC:
 	""" initialization routine for VQC object. """
-	def __init__(self, qubits):
+	def __init__(self, qubits, state_prep = None, fp_radius = None, fp_type = None):
 
 		# initialize the number of qubits input 
 		# into the classification circuit
-		self.initialize_VQC_qubits(qubits)
+		self.set_VQC_qubits(qubits)
+
+		# initialize the number of classical bits, according to 
+		# how the classical information are encoded in the qubits
+		self.set_qubit_state_prep_method(state_prep_method = state_prep, \
+			default = default_state_prep_method)
+
+		# assign fingerprinting technique
+		self.set_fingerprint(fp_type = fp_type, fp_radius = fp_radius)
 
 		# initialize the architecture type used for VQC
 		self.circuit = None
 
-		# initialize hyperparameters as off
-		self.thresholding_status = default_threshold_status
-		self.batch_status = default_batch_status
-
 		# initialize X and Y data sets as empty
-		self.X = None
-		self.Y = None
+		self.X = None # bit strings / vectors
+		self.Y = None # classification of X, as one of two catagories
+		self.P = None # predictions make by circuit that use X to determine Y
+		self.SV = None
+		# array that contains state vectors used to initialize  
+		# quantum state during circuit calculations
 
 		# array containing weights of unitary operations
 		# and their upper and lower boundaries
@@ -82,7 +184,7 @@ class VQC:
 		self.B = None
 
 	""" method used to wrap qubit initialization. """
-	def initialize_VQC_qubits(self, qubits):
+	def set_VQC_qubits(self, qubits):
 
 		# check that the number of qubits assigned to
 		# the VQC is acceptable
@@ -96,27 +198,82 @@ class VQC:
 			print(f" Q ({qubits}) is outside of Q_MIN ({min_qubits}) and Q_MAX ({max_qubits}).")
 			exit()
 
+	""" method used to initialize method for qubit state preperation. 
+		The state preperation method determines the number of classical
+		bits that should be used to load the dataset. """
+	def set_qubit_state_prep_method(self, state_prep_method, default):
+		# if no state prep specification was provided by the user
+		if state_prep_method is None:
+			# assign the default
+			state_prep_method = default
+
+		# assign the state prep method
+		if state_prep_method == "BasisEmbedding":
+			self.state_prep = "BasisEmbedding"
+			# for basis embeddeding, the number of classical bits is the same as
+			# the number of qubits
+			self.classical_bits = self.qubits
+		elif state_prep_method == "AmplitudeEmbedding":
+			self.state_prep = "AmplitudeEmbedding"
+			# for amplitude embedding, the number of classical bits is 2 ^ N_qubits
+			self.classical_bits = 2 ** self.qubits
+		else:
+			print(f"TODO :: Implement {state_prep_method} qubit state preperation method.")
+			exit()
+
+	""" method for assigning the techniques that are used to fingerprint
+		SMILE strings. """
+	def set_fingerprint(self, fp_type = None, fp_radius = None):
+
+		# assign the fingerprinting method
+		if fp_type is None:
+			fp_type = default_fp_type
+
+		if fp_type == 'rdkfp':
+			self.fp_type = 'rdkfp'
+		else:
+			print(f"TODO :: Implement {fp_type} fingerprinting technique. Assigning default ({default_fp_type}).")
+			self.fp_type = default_fp_type
+
+		# assign the fingerprinting radius
+		if fp_radius is None or fp_radius < 3:
+			fp_radius = default_fp_radius
+
+		self.fp_radius = fp_radius
+
+	""" method used to the set the number used to enumerate the number
+		of times that a circuit has been optimized to zero """
+	def initialize_optimization_iterations(self):
+		# set the counter to zero
+		self.n_it = 0
+		# initialize the arrays that contain the optimization stats
+		self.opt_cost = [] # cumulation of cost scores during model optimization
+		self.opt_ce = [] # cumulation of cross entropy scores during optimization
+		self.opt_acc = [] # cumulation of accuracy scores during optimization
+
 	""" method used to load smile strings and activity classifications
 		from csv file. """
-	def load_data (self, path, smile_col, class_col, fp_type = default_fp_type, fp_radius = default_fp_radius, BAE = False, verbose = False):
+	def load_data (self, load_path, smile_col, class_col, BAE = False, verbose = False):
 
 		# check that the path to the specified file exists
-		if not os.path.exists(path):
-			print(f" PATH ({path}) does not exist. Cannot load dataset.")
+		if not os.path.exists(load_path):
+			print(f" PATH ({load_path}) does not exist. Cannot load dataset.")
 			exit()
 
-		# loaded csv
-		df = pd.read_csv(path)
+		# inform user, loaded csv
+		print(f"\nLoading SMILES from ({load_path}) ..")
+		df = pd.read_csv(load_path)
 		# check that headers are in the dataframe, load data
 		if not smile_col in df.columns:
-			print(f" SMILE COL ({smile_col}) not in FILE ({path}). Unable to load smile strings.")
+			print(f" SMILE COL ({smile_col}) not in FILE ({load_path}). Unable to load smile strings.")
 			exit()
 		elif not class_col in df.columns:
-			print(f" CLASSIFICATION COL ({class_col}) not in FILE ({path}). Unable to load classification data.")
+			print(f" CLASSIFICATION COL ({class_col}) not in FILE ({load_path}). Unable to load classification data.")
 			exit()
 
-		# load dataset
+		# load dataset, inform user
 		smi = df[smile_col].tolist()
+		print(f"Translating SMILES to {self.classical_bits}-bit vector with {self.fp_type} ..")
 
 		# generate bit vector fingerprints
 		if BAE == True:
@@ -124,12 +281,16 @@ class VQC:
 			# to low dimensional bit vector
 			print(f" TODO :: implement autoencoder.")
 			exit()
-		else:
+		elif self.fp_type == 'rdkfp':
+			# use the rdkfp
 			fp = [AllChem.GetMorganFingerprintAsBitVect(Chem.MolFromSmiles(x), \
-				radius = fp_radius, nBits = self.qubits, useFeatures = True).ToBitString() for x in smi]
+				radius = self.fp_radius, nBits = self.classical_bits, useFeatures = True).ToBitString() for x in smi]
+		else:
+			print(f"TODO :: Implement {self.fp_type} fingerprinting technique.")
+			exit()
 
 		# translate fingerprint vectors to binary strings
-		self.X = np.zeros((len(fp), self.qubits), dtype=int)
+		self.X = np.zeros((len(fp), self.classical_bits), dtype=int)
 		for i in range(len(fp)):
 			# print(fp[i])
 			for j in range(self.qubits):
@@ -139,26 +300,32 @@ class VQC:
 
 		# load classification data
 		self.Y = np.array(df[class_col])
+		self.Y = self.Y * 2 - np.ones(len(self.Y)) # shift label form [0, 1] to [-1, 1]
 
 		# if the user wants to write the data set to the
 		if verbose:
-			print(f"\nLoading DATA ({path}) .. \n")
+			print(f"\nLoading DATA ({load_path}) .. \n")
 			for i in range(len(self.Y)):
 				print("X = {}, Y = {:.2f}".format(self.X[i], self.Y[i]))
 
-
 	""" method used to initialize the VQC circuit architecture, unitary weights. """
-	def initialize_circuit(self, circuit = None, QFT = False, bit_correlation = False):
+	def initialize_circuit(self, circuit = None, bit_correlation = False):
 
 		## TODO :: prevent this method for being called if there is no data associated with the object
 
 		# initialize the circuit architecture
-		if circuit == None:
-			self.circuit = VC(self.qubits)
+		# if none was specified, load the default ansatz
+		if circuit is None:
+			circuit = default_VQC_circuit
+
+		# initialize the anstaz object 
+		if circuit == 'VC':
+			self.circuit = VariationalClassifier(self.qubits, self.state_prep)
+		elif circuit == 'TTN':
+			self.circuit = TreeTensorNetwork(self.qubits, self.state_prep)
 		else:
-			# TODO check that architecture is in 
-			# list of acceptable archite
-			self.circuit = VC(self.qubits)
+			print(f"ERROR :: {circuit} circuit ansatz not implemented yet.")
+			exit()
 
 		# initialize unitary weights and their upper and lower bounds
 		# according to the number of qubits and circuit architecture
@@ -166,88 +333,213 @@ class VQC:
 
 	""" method used to calculate the error of a give set of unitary weights 
 		in predicting the class of a given set of bit strings. """
-	def cost_function(W):
-
-		# if thresholding is turned on, establish the threshold
-		if self.thresholding_status:
-			print ("TODO :: implement thresholding.")
-		else:
-			t = 0.99
-
-		# if batching is turned on
-		if batch_status:
-			# generate a random list of X and Y
-			index = np.random.randint(0, high = len(X), size = n_batch)
-		else:
-			index = [x for x in range(len(self.X))]
+	def cost_function(self, W):
 
 		# make predictions for all X values
-		# if values are above the treshhold
-		# assume the predctions are correct
 		Y_pred = []
-		for i in index:
-			# get the smile strings
-			x = self.X[i]
+		Y_class = []
+		for i in range(len(self.SV)):
 
-			# make a prediction
-			y = self.circuit.classify(W, x)
+			# state vector
+			sv = self.SV[i]
 
-			if self.thresholding_status:
-				print ("TODO :: implement thresholding.")
+			# make a prediction with the weights passed to the function
+			y = self.circuit.classify(W, state_vector = sv)
 
 			# add the prediction and its known value to the list
-			Y_pred.append([y, Y[i]])
-
+			Y_pred.append(y)
+			Y_class.append(self.Y[i])
 
 		# calculate the cost and accuracy of the weights
-		cost, acc = error(Y_pred)
+		norm, acc, ce = error(Y_pred, Y_class)
+		self.n_it += 1 # increment iteration
+		self.opt_cost.append(norm)
+		self.opt_ce.append(ce)
+		self.opt_acc.append(acc)
+
+		# report the status of the model predictions to the user
+		print("Iteration: {:5d} | Cost: {:0.5f} | Cross-Entropy: {:0.5f} | Accuracy : {:0.5f}"\
+			.format(self.n_it, norm, ce, acc))
 
 		# return the value to the user
-		return cost
+		return ce
+
+	""" method that makes predictions for the data set that is loaded into 
+		the variational qunatum circuit. returns array with with "probability-like"
+		predictions for each compounds, scaled from 0 - 1 """
+	def predict(self):
+
+		# inform the user
+		print(f"\nMaking predictions for the data stored within the circuit ..")
+
+		# initialize the predictions, which are stored within the objecty
+		self.P = []
+
+		for i in range(len(self.X)):
+
+			 # bit vector
+			 x = self.X[i]
+
+			 # make a prediction with the weights that are stored within the circuit
+			 y = self.circuit.classify(self.W, bit_string = x)
+
+			 # add the prediction to the list
+			 self.P.append(y)
+
+		# return the scaled predictions to the user
+		return (self.P + np.ones(len(self.P))) / 2.
+
+	""" use the predictions made by the circuit to generate statistics about the
+		performance of the circuit as a model.
+
+		NOTE: circuit does not check it the values that the circuit made predictions
+		for were utilized by the model for training. """
+	def get_stats (self, save_dir = None, title = None):
+
+		# check that the circuit already has made predictions for a set
+		if self.P is None:
+			# circuit must already have made predictions
+			print(f"Error :: circuit has not made any predictions.")
+			exit()
+
+		# if a path was specified by the user,
+		# check that it exists
+		if save_dir is not None:
+			# check that the path exists
+			if not os.path.exists(save_dir):
+				# if it does not, make the path
+				os.mkdir(save_dir)
+
+		# generate file names
+		if title is not None:
+			title = 'VQC'
+		file_stats = title + '_stats.csv'
+		file_pred = title + '_true_pred.csv'
+		file_roc = title + '_roc.csv'
+
+		# calculate class label and predictions according to values stored with circuit
+		Y_prob = [((p + 1.) / 2.) for p in self.P]
+		Y_pred = [1 if p >= 0. else 0 for p in self.P]
+		Y_true = [1 if c >= 0. else 0 for c in self.Y]
+		df_pred = pd.DataFrame(data = {'y_true': Y_true, 'y_pred': Y_pred, 'y_prob': Y_prob})
+		if save_dir is not None:
+			df_pred.to_csv(save_dir + file_pred, index = False)
+
+		# get stats
+		stat_dict = {}
+		stat_dict['acc'] = accuracy_score(Y_true, Y_pred)
+		stat_dict['f1s'] = f1_score(Y_true, Y_pred)
+		stat_dict['cks'] = cohen_kappa_score(Y_true, Y_pred)
+		stat_dict['mcc'] = matthews_corrcoef(Y_true, Y_pred)
+		stat_dict['pre'] = precision_score(Y_true, Y_pred)
+		stat_dict['rec'] = recall_score(Y_true, Y_pred) 
+
+		try:
+			fpr, tpr, __ = roc_curve(Y_true, Y_prob)
+			roc_auc = auc(fpr, tpr)
+			stat_dict['roc_auc'] = roc_auc
+			df_roc = pd.DataFrame(data = {'fpr': fpr, 'tpr': tpr})
+			if save_dir is not None:
+				df_roc.to_csv(save_dir + file_roc, index = False)
+		except ValueError as ex:
+			log.error(ex)
+
+		if save_dir is not None:
+			df_stat = pd.DataFrame(stat_dict, index = [0])
+			df_stat.to_csv(save_dir + file_stats, index = False)
+
+		return stat_dict
+
+	""" method that stores the current state of the circuit as a dictionary. """
+	def gen_dict(self):
+
+		# initialize empty dictionary
+		vqc_dict = {}
+
+		# add circuit parameters to dictionary
+		vqc_dict['qubits'] = self.qubits
+		vqc_dict['qubit_state_prep'] = self.state_prep
+		if type(self.circuit) is VariationalClassifier:
+			vqc_dict['ansatz'] = 'VariationalClassifier'
+		elif type(self.circuit) is TreeTensorNetwork:
+			vqc_dict['ansatz'] = 'TreeTensorNetwork'
+		else:
+			vqc_dict['ansatz'] = 'NA'
+		vqc_dict['fp_type'] = self.fp_type
+		vqc_dict['fp_radius'] = self.fp_radius
+		vqc_dict['n_weights'] = len(self.W)
+		vqc_dict['n_bounds'] = len(self.B)
+
+		# save individual weights
+		for i in range(len(self.W)):
+			vqc_dict['weights_{:03d}'.format(i)] = str(self.W[i])
+
+		# save upper and lower boundaries for each weight
+		for i in range(len(self.B)):
+			vqc_dict['bounds_{:03d}_0'.format(i)] = str(self.B[i][0])
+			vqc_dict['bounds_{:03d}_1'.format(i)] = str(self.B[i][1])
 
 
+		# return the dictionary to the user
+		return vqc_dict
 
+	""" method that uses a dictionary to assign the vqc state according to the
+		data stored in the dictionary. """
+	def load_dict(self, vqc_dict):
 
-	""" initialize batching protcol for optimization """
-	def set_batching(self, status, batch_size = None):
+		# assign values to circuit according to data stored in dictionary
+		self.qubits = vqc_dict['qubits']
+		self.state_prep = vqc_dict['qubit_state_prep']
+		if vqc_dict['ansatz'] == 'VariationalClassifier':
+			self.circuit = VariationalClassifier(self.qubits, self.state_prep)
+		elif vqc_dict['ansatz'] == 'TreeTensorNetwork':
+			self.circuit = TreeTensorNetwork(self.qubits, self.state_prep)
+		else:
+			print(f"Unable to load circuit architecture {vqc_dict['ansatz']}")
+		self.fp_type = vqc_dict['fp_type']
+		self.fp_radius = vqc_dict['fp_radius']
 
-		if status == True:
-			# turn on the batching routine
-			self.batch_status = True
+		# create an empty array that is the weights length specified in the dictionary
+		self.W = np.empty((vqc_dict['n_weights']))
+		for i in range(len(self.W)):
+			self.W[i] = float(vqc_dict['weights_{:03d}'.format(i)])
 
-			# if the batch size was not passed to the method
-			if batch_size == None:
-				# assign the default batch size
-				self.batch_size = default_batch_size
-			else:
-				# check that the batch size value passed to the method is correct
-				if batch_size <= 1. and batch_size > 0.:
-					# if the value is between one and zero
-					self.batch_size = batch_size
-				else:
-					# assign the default value
-					self.batch_size = default_batch_size
+		# create and empty array this is the boundaries length specified in the dictionary
+		self.B = [[[], []] for i in range(vqc_dict['n_bounds'])]
+		for i in range(len(self.B)):
+			self.B[i][0] = float(vqc_dict['bounds_{:03d}_0'.format(i)])
+			self.B[i][1] = float(vqc_dict['bounds_{:03d}_1'.format(i)])
 
-	""" initialize tresholding protocol for optimization routine """
-	def set_threshold(self, status, threshold = None):
+	""" method used to save the state of a circuit in a way that the exact same
+		circuit can be reloaded. This includes the circuits weights (esp. after
+		optimization), state prep, etc. """
+	def save_circuit(self, save_to = None, save_as = None):
 
-		if status == True:
-			# turn on the tresholding routine
-			self.thresholding_status = True
+		if save_to is None:
+			# must pass path to method
+			print(f"ERROR :: must specify save directory as save_to.")
 
-			# if the threshold was no passed to the method
-			if threshold == None:
-				# assign the default value
-				self.threshold = default_threshold
-			else:
-				# check that the value passed to the method is correct
-				if threshold > 0. and threshold < 1.:
-					# if the value is between one and zero
-					self.threshold = threshold
-				else:
-					# assign the default
-					threshold = default_threshold
+		# check that the path exists
+		# if it does not, make the path
+		if not os.path.exists(save_to):
+			os.mkdir(save_to)
 
+		vqc_dict = self.gen_dict()
+		save_file = save_to + save_as + '.yaml'
+		f = open(save_file, 'w')
+		yaml.dump(vqc_dict, f)
+		f.close()
+
+	""" method that loads yaml file, which specifies circuit state. """
+	def load_circuit (self, load_path):
+
+		# check that the path to the yaml file exists
+		if not os.path.exists(load_path):
+			print(f"ERROR :: Unable to load circuit. Path ({load_path}) does not exist.")
+
+		with open(load_path, 'r') as file:
+			vqc_dict = yaml.safe_load(file)
+		self.load_dict(vqc_dict)
 
 	""" method used to write bit strings and classification to external file."""
 	def write_data (self, path):

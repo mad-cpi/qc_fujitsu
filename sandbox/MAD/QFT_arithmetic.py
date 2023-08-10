@@ -46,11 +46,11 @@ def add_k_fourier(k,circuit, n):
 	# get binary string representation of string
 
 	# for each qubit in the m-fourier basis state
-	for i in range(k):
-		for x in range(n):
-			gate = RZ(x, -np.pi/(2**(n-x-1)))
-	        # add gate to circuit
-			circuit.add_gate(gate)
+	# for i in range(k):
+	for x in range(n):
+		gate = RZ(x, k * -np.pi/(2**(n-x-1)))
+        # add gate to circuit
+		circuit.add_gate(gate)
 	
 	# return circuit to user
 	return circuit
@@ -61,11 +61,11 @@ def sub_k_fourier(k,circuit, n):
 	# TODO :: check that k is an integer with the same bit size as m
 
 	# for each qubit in the m-fourier basis state
-	for i in range(k):
-		for x in range(n):
-			gate = RZ(x, np.pi/(2**(n-x-1)))
-	        # add gate to circuit
-			circuit.add_gate(gate)
+	# for i in range(k):
+	for x in range(n):
+		gate = RZ(x, k * np.pi/(2**(n-x-1)))
+        # add gate to circuit
+		circuit.add_gate(gate)
 
 	# return circuit to user
 	return circuit
@@ -132,6 +132,6 @@ def sample_state_distribution (s, m, save_path = None):
 		plt.savefig(save_path, dpi = 400, bboxinches = 'tight')
 
 if __name__ == '__main__':
-	sum_QFT(15,5)
+	sum_QFT(11,1)
 
 
