@@ -91,7 +91,7 @@ def optimize(vqc, save_dir = None, title = None):
 			os.mkdir(save_dir)
 
 		# create dataframe
-		df = pd.DataFrame(data = {'cost': self.opt_cost, 'cross-entropy': self.opt_ce, 'accuracy': self.opt_acc})
+		df = pd.DataFrame(data = {'cost': vqc.opt_cost, 'cross-entropy': vqc.opt_ce, 'accuracy': vqc.opt_acc})
 
 		# save file
 		if title is None:
@@ -358,7 +358,7 @@ class VQC:
 		self.opt_acc.append(acc)
 
 		# report the status of the model predictions to the user
-		print("Iteration: {:5d} | Cost: {:0.5f} | Cross-Entropy: {:0.5f} | Accuracy : {:0.5f}"\
+		print("Iteration: {:5d} | Cost: {:0.5f} | Cross-Entropy: {:0.5f} | Accuracy: {:0.5f}"\
 			.format(self.n_it, norm, ce, acc))
 
 		# return the value to the user
