@@ -208,18 +208,81 @@ class ClassificationCircuit (ABC):
 		self.set_QFT_status() # initialize QFT operation, default is off
 
 	# set the number of circuit qubits
-	def set_circuit_qubits(qubits):
+	def set_circuit_qubits(self, qubits):
 
 		if qubits > max_desktop_qubits:
 
 			# import mpi4py, check rank
-			import mpi4py
+			from mpi4py import MPI
 			comm = MPI.COMM_WORLD
-			rank = comm.Get_rank()
-			print(rank)
-			exit()
+			rank = (comm.Get_rank() + 1)
+			print("\nInitializing ")
+
+			# TODO :: there is definitely a better way to perform
+			# this logical operation
 
 			# use rank to determine how many qubits can be initialized
+			MPI_err = False # boolean that determines if there is an error
+			# between the number of qubits that the circuit is simulating, 
+			# and the number of compute nodes the program has access to
+			if qubits <= 30:
+				# in order to simulation at least 30 qubits
+				if rank < 1:
+					# the program must at least have access to one compute node
+					MPI_err = True
+			elif qubits <= 31:
+				# in order to simulate at least 31 qubits
+				if rank < 2:
+					# the program must have access to at least two compute nodes
+					MPI_err = True
+			elif qubits <= 32:
+				# in order to simulate at least 32 qubits
+				if rank < 4:
+					# the program must have access to at least four compute nodes
+					MPI_err = True
+			elif qubits <= 33:
+				# in order to simulate 33 qubits
+				if rank < 8:
+					# the program must have access to at least eight compute nodes
+					MPI_err = True
+			elif qubits <= 34:
+				# in order to simulate 34 qubits
+				if rank < 16:
+					# the program must have access to at least sixteen compute nodes
+					MPI_err = True
+			elif qubits <= 35:
+				# in order to simulation 35 qubits
+				if rank < 32:
+					# the program must have access to at least thiry-two compute nodes
+					MPI_err = True
+			elif qubits <= 36:
+				# in order to simulate 36 qubits
+				if rank < 64:
+					# the program must have access to at least sixty-four qubits
+					MPI_err = True
+			elif qubits <= 37:
+				# in order to simulate 37 qubits
+				if rank < 128:
+					# the program must have access to at least one hundred and twenty eight compute nodes
+					MPI_err = True
+			elif qubits <= 38:
+				# in order to simulate 38 qubits
+				if rank < 256:
+					# the program must have access to at least two hundred and fifty-six qubits
+					MPI_err = True
+			elif qubits <= 39:
+				# in order to simulate 39 qubits
+				if rank < 512:
+					# the program must have access to at least five hundrd and twelve qubits
+					MPI_err = True
+			else:
+				# impossible to simulation any greater number of qubits
+				MPI_err = True
+
+			# if an error has occured, inform the user and exit
+			if MPI_err:
+				print(f"ERROR :: Attempting to intialize {qubits} qubits with only {rank} compute nodes.")
+				exit()
 
 		else:
 
