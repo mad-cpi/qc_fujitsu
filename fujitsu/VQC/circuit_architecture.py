@@ -93,6 +93,9 @@ def get_state_vector(state):
     else:
         return state.get_vector()
 
+""" method for loading the state vector into a qulacs quantum state. The way that the
+	quantum state should be loaded deopends on the whether the quantum state is integrated 
+	with MPI. """
 def load_state_vector(state, vector):
     """
     Loads the given entire state vector into the given state.
@@ -121,9 +124,9 @@ def reverse(s):
     s = s[::-1]
     return s
 
-""" method used to initialize qubit state in computational basis corresponding
-	to bit string passed to the method. """
-def basis_encoding (x):
+""" method that returns circuit used to initialize qubit state in 
+	computational basis corresponding to bit string passed to the method. """
+def basis_encoding_circuit (x):
 
 	# reverse bit string due to qulacs nomenclature
 	# (in qulacs, 0th bit is represented by the right now digit,
@@ -133,8 +136,6 @@ def basis_encoding (x):
 	# get the number of qubits in the string, initialize quantum state
 	# in the computationa zero basis
 	n = len(x)
-	s = QuantumState(n)
-	s.set_zero_state()
 
 	# initialize circuit used to set qubit state in
 	# corresponding computational basis
@@ -146,17 +147,16 @@ def basis_encoding (x):
 			# add X gate to corresponding qubit
 			c.add_X_gate(i)
 
-	# use circuit to update quantum state, return to user
-	c.update_quantum_state(s)
-	return s
+	# return the circuit to the user
+	return c
 
-""" method used to initialize qubit state as fourier basis corresponding to bit string
-	passed to the method. """
-def QFT_encoding(x):
+""" method used to return the circuit that initializes a qubit state as fourier basis 
+	corresponding to bit string passed to the method. """
+def QFT_encoding_circuit(x):
 
 	# embed x as the computational basis
 	n = len(x)
-	s = basis_encoding(x)
+	s = basis_encoding(x) # TODO :: change to basis encoding circuit
 
 	# convert the bit string to an integer, embed the integer in the fourier basis
 	k = s.sampling(1)
@@ -164,11 +164,8 @@ def QFT_encoding(x):
 	cQFT = qft_init(cQFT, n)
 	cQFT = add_k_fourier(k[0], cQFT, n)
 
-
-	# reset state, return the fourier basis to the user
-	s = QuantumState(n)
-	cQFT.update_quantum_state(s)
-	return s
+	# return the circuit to the user
+	return cQFT
 
 """ method that generates a circuit, which translates an n-qubit state which is initially in
 	the zero computational basis to a the zero fourier basis."""
@@ -224,11 +221,11 @@ def amp_encoding (x):
 	for i in x:
 		a = np.append(a, [i / norm])
 
-	# initialize the qubits using the state vector
-	state = QuantumState(n)
-	state.load(a)
+	# # initialize the qubits using the state vector
+	# state = QuantumState(n)
+	# state.load(a)
 
-	return state
+	return sv
 
 """ TODO :: add method to quantifying qubit circuits (?? forgot what I meant by this) """
 
@@ -351,22 +348,39 @@ class ClassificationCircuit (ABC):
 	def batch_state_prep(self, X):
 
 		# for each bit string
-		S = []
+		SV = []
 		for x in X:
-			# initialize qubit state
+			# initialize the circuit that sets the qubit state
 			if self.state_prep ==  "QFT_encoding":
-				# embed string as fourier basis
-				state = QFT_encoding(x)
+				# get quantum circuit
+				c = QFT_encoding_circuit(x)
+				# initialize qunautm state
+				if self.use_MPI:
+					s = QuantumState(self.qubits, use_multi_cpu = True)
+				else:
+					s = QuantumState(self.qubits)
+				s.set_zero_state()
+				c.update_quantum_state(s)
+				sv = get_state_vector(s)
+				SV.append(sv)
 			elif self.state_prep == "AmplitudeEmbedding":
-				# embed state as amplitudes
-				state = amp_encoding(x)
+				# amplitude encoding returns the state automatically
+				sv = amp_encoding(x)
+				SV.append(sv)
 			else:
 				# default is embed bit string as computational basis
-				state = basis_encoding(x)
-			# add state vector to array
-			S.append(state.get_vector())
+				c = basis_encoding_circuit(x)
+				# initialize the quantum state
+				if self.use_MPI:
+					s = QuantumState(self.qubits, use_multi_cpu = True)
+				else:
+					s = QuantumState(self.qubits)
+				s.set_zero_state() # initialize the zero state
+				c.update_quantum_state(s) # update the quantum state
+				sv = get_state_vector(s) # return the state vector from the parsing function
+				SV.append(sv) # add the state vector to the list
 		# return the array to the user
-		return S
+		return SV
 
 	""" methed used by all classification circuits. weights passed to method (W) 
 		are used to make prediction / classification for bit string passed to method (x). """
@@ -385,13 +399,13 @@ class ClassificationCircuit (ABC):
 			# initialize qubit state using the bit string
 			if self.state_prep ==  "QFT_encoding":
 				# embed string as fourier basis
-				state = QFT_encoding(bit_string)
+				state = QFT_encoding_circuit(bit_string)
 			elif self.state_prep == "AmplitudeEmbedding":
 				# embed state as amplitudes
 				state = amp_encoding(bit_string)
 			else:
 				# default is embed bit string as computational basis
-				state = basis_encoding(bit_string)
+				state = basis_encoding_circuit(bit_string)
 		else:
 			# use the state vector to load the initial qubit state
 			state = QuantumState(self.qubits)
