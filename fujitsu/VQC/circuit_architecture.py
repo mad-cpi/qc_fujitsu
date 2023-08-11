@@ -76,8 +76,43 @@ def random_unitary_weights (n_weights, avg = norm_avg, std = norm_std):
 
 	return weights, bounds
 
+""" method for getting the state vector of a quantum state which has been operated
+	on by a quantum circuit. The way that the program retrieves the state vector depends
+	on which MPI has been used to simulate the quantum state."""
+def get_state_vector(state):
+    if state.get_device_name() == 'multi-cpu':
+        mpicomm = MPI.COMM_WORLD
+        mpisize = mpicomm.Get_size()
+        vec_part = state.get_vector()
+        len_part = len(vec_part)
+        vector_len = len_part * mpisize
+        vector = np.zeros(vector_len, dtype=np.complex128)
+        mpicomm.Allgather([vec_part, MPI.DOUBLE_COMPLEX],
+                          [vector, MPI.DOUBLE_COMPLEX])
+        return vector
+    else:
+        return state.get_vector()
 
-## QUBIT ENCODING method
+def load_state_vector(state, vector):
+    """
+    Loads the given entire state vector into the given state.
+
+    Args:
+        state (qulacs.QuantumState): a quantum state
+        vector: a state vector to load
+    """
+    if state.get_device_name() == 'multi-cpu':
+        mpicomm = MPI.COMM_WORLD
+        mpirank = mpicomm.Get_rank()
+        mpisize = mpicomm.Get_size()
+        vector_len = len(vector)
+        idx_start = vector_len // mpisize * mpirank
+        idx_end = vector_len // mpisize * (mpirank + 1)
+        state.load(vector[idx_start:idx_end])
+    else:
+        state.load(vector)
+
+## QUBIT ENCODING METHODS ##	
 
 """ method the reverses the order of a bit string
 	(in qulacs, the rightmost bit corresponds to
@@ -207,6 +242,8 @@ class ClassificationCircuit (ABC):
 		self.set_observable()
 		self.set_QFT_status() # initialize QFT operation, default is off
 
+	## SETTERS AND GETTERS ##
+
 	# set the number of circuit qubits
 	def set_circuit_qubits(self, qubits):
 
@@ -283,11 +320,17 @@ class ClassificationCircuit (ABC):
 			if MPI_err:
 				print(f"ERROR :: Attempting to intialize {qubits} qubits with only {rank} compute nodes.")
 				exit()
+			else:
+				# if no error has occured, assign the qubits to the circuit
+				self.qubits = qubits
+				self.use_MPI = True
+
 
 		else:
 
 			# assign the qubits to the circuit and proceed
 			self.qubits = qubits
+			self.use_MPI = False
 
 	## generic circuit architecture circuit methods
 
@@ -534,7 +577,7 @@ class TreeTensorNetwork(ClassificationCircuit):
 	def set_observable(self):
 		self.obs = Observable(self.qubits)
 		# the qubit which is obserbed depends on the overall number of qubits
-		operator = 'Z {:d}'.format(10)
+		operator = 'Z {:d}'.format(10) # TODO :: this is hard coded
 		self.obs.add_operator(1., operator)
 
 	""" intialize weights of classification circuit according to the TTN circuit
