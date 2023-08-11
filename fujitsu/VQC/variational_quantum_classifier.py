@@ -4,17 +4,20 @@ import numpy as np
 import math
 import seaborn as sns
 import matplotlib.pyplot as plt
+# used for learning
+from scipy.optimize import minimize
+import warnings
+import time
 # used for model saving and loading
 import yaml
 # rdkit libraries
 from rdkit import Chem
 from rdkit.Chem import AllChem, rdFingerprintGenerator
-from scipy.optimize import minimize
 # used to calculate model stats
 from sklearn.metrics import accuracy_score, f1_score, cohen_kappa_score, matthews_corrcoef, \
 	precision_score, recall_score, roc_curve, auc 
 # VQC circuit architectures
-from fujitsu.VQC.circuit_architecture import VariationalClassifier, TreeTensorNetwork
+from VQC.circuit_architecture import VariationalClassifier, TreeTensorNetwork
 
 ## PARAMETERS ## 
 
@@ -24,7 +27,7 @@ from fujitsu.VQC.circuit_architecture import VariationalClassifier, TreeTensorNe
 # max number of qubits that can be assigned
 # to the classification circuit (for safety,
 # on any desktop this number shouldnt be greater than 20)
-max_qubits = 20
+# max_qubits = 26
 
 # minimum number of qubits that can be assigned
 # to any classification circuit
@@ -49,15 +52,15 @@ default_fp_type = "rdkfp"
 default_fp_radius = 3
 
 
-
-## TODO :: add VQC exception
+class TookTooLong(Warning):
+    pass
 
 ## VQC OPTIMIZATION METHODS ##
 
 """ method used to optimize the current weights of a variational circuit according
 	to the dataset sotored within the variational classification circuit
 	object. """
-def optimize(vqc, save_dir = None, title = None):
+def optimize(vqc, save_dir = None, title = None, max_opt_steps = None, max_opt_hours = None, minimize_method = 'Powell'):
 
 	# check that data has been loaded into the circiut
 	if vqc.X is None or vqc.Y is None:
@@ -65,19 +68,22 @@ def optimize(vqc, save_dir = None, title = None):
 		exit()
 
 	# initialize the iteration count for the circuit
-	vqc.initialize_optimization_iterations()
+	opts_dict = {}
+	vqc.initialize_circuit_optimization(steps = max_opt_steps, hours = max_opt_hours)
+	if vqc.max_opt_steps is not None:
+		if minimize_method != 'TNC':
+			opts_dict['maxiter'] = vqc.max_opt_steps
+		else:
+			opts_dict['maxfun'] = vqc.max_opt_steps
 
 	# translate bit strings to state vectors before processing
 	print(f"\nTranslating fingerprints to quantum state vectors ..")
 	vqc.SV = vqc.circuit.batch_state_prep(vqc.X)
 
-	# TODO :: set the number of times that the optimization function stores
-	# 		stats associated with the optimization function
-
 	# optimize the weights associated with the circuit
 	W_init = vqc.W
-	print(f"Optimizing VQC circuit ..")
-	opt = minimize (vqc.cost_function, vqc.W, method = 'Powell', bounds = vqc.B)
+	print(f"Optimizing VQC circuit {opts_dict}..")
+	opt = minimize (vqc.cost_function, x0 = vqc.W, method = minimize_method, bounds = vqc.B, options = opts_dict, callback = vqc.minimizer_callback)
 
 	# assign the optimal weights to the classification circuit
 	vqc.W = opt.x
@@ -188,14 +194,14 @@ class VQC:
 
 		# check that the number of qubits assigned to
 		# the VQC is acceptable
-		if (qubits <= max_qubits and qubits >= min_qubits):
+		if (qubits >= min_qubits):
 			# assign the qubits
 			self.qubits = qubits
 		else:
 			# the number is outside of the range
 			# throw an error
 			print(f" Error assigning qubits. Number passed to method outside of the allowable range.")
-			print(f" Q ({qubits}) is outside of Q_MIN ({min_qubits}) and Q_MAX ({max_qubits}).")
+			print(f" Q ({qubits}) is outside of Q_MIN ({min_qubits}).")
 			exit()
 
 	""" method used to initialize method for qubit state preperation. 
@@ -243,9 +249,23 @@ class VQC:
 
 	""" method used to the set the number used to enumerate the number
 		of times that a circuit has been optimized to zero """
-	def initialize_optimization_iterations(self):
+	def initialize_circuit_optimization(self, steps = None, hours = None):
 		# set the counter to zero
 		self.n_it = 0
+		# set the elapsed time to the clock time before the minimizer starts optimization process
+		self.opt_start_time = time.time()
+		# assign the maximum number of steps that the optimizer can for the call back function
+		if steps is not None:
+			if steps > 0:
+				self.max_opt_steps = steps
+		else:
+			self.max_opt_steps = None
+		# assign the maximum length of time the optimizer can run
+		if hours is not None:
+			if hours > 0.:
+				self.max_opt_hours = hours
+		else:
+			self.max_opt_hours = None
 		# initialize the arrays that contain the optimization stats
 		self.opt_cost = [] # cumulation of cost scores during model optimization
 		self.opt_ce = [] # cumulation of cross entropy scores during optimization
@@ -364,6 +384,31 @@ class VQC:
 		# return the value to the user
 		return ce
 
+	""" method used to stop the minimizer after the maximum number of iterations
+		has been reached. """
+	def minimizer_callback (self, xk):
+
+		# get the elapsed time since 
+		opt_time = time.time() - self.opt_start_time
+		print(opt_time)
+
+		# if too much elapsed time has passed
+		if opt_time > self.max_opt_hours:
+			warnings.warn("Terminating optimization: time limit reached",
+                          TookTooLong)
+			# inform the user and stop optimization
+			print(f"Optimization time ({opt_time}) has surpassed threshold ({self.max_opt_hours})")
+			return True
+		elif self.n_it > self.max_opt_steps:
+			# if the optimizer has surpased the maximum number of iterations
+			# inform the user and stop optimization
+			warnings.warn("Terminating optimization: optimization steps reached",
+                          TookTooLong)
+			print(f"Optimization steps ({self.n_it}) has surpased the maximum allowable amount ({self.max_opt_steps})")
+			return True
+		else:
+			print("Elapsed minimization time {:.3f}".format(opt_time))
+
 	""" method that makes predictions for the data set that is loaded into 
 		the variational qunatum circuit. returns array with with "probability-like"
 		predictions for each compounds, scaled from 0 - 1 """
@@ -460,9 +505,9 @@ class VQC:
 		vqc_dict['qubits'] = self.qubits
 		vqc_dict['qubit_state_prep'] = self.state_prep
 		if type(self.circuit) is VariationalClassifier:
-			vqc_dict['ansatz'] = 'VariationalClassifier'
+			vqc_dict['ansatz'] = 'VC'
 		elif type(self.circuit) is TreeTensorNetwork:
-			vqc_dict['ansatz'] = 'TreeTensorNetwork'
+			vqc_dict['ansatz'] = 'TTN'
 		else:
 			vqc_dict['ansatz'] = 'NA'
 		vqc_dict['fp_type'] = self.fp_type
@@ -488,16 +533,16 @@ class VQC:
 	def load_dict(self, vqc_dict):
 
 		# assign values to circuit according to data stored in dictionary
-		self.qubits = vqc_dict['qubits']
-		self.state_prep = vqc_dict['qubit_state_prep']
-		if vqc_dict['ansatz'] == 'VariationalClassifier':
+		self.sqt_VQC_qubits(vqc_dict['qubits'])
+		self.set_qubit_state_prep_method(state_prep_method = vqc_dict['qubit_state_prep'], \
+			default = default_state_prep_method)
+		if vqc_dict['ansatz'] == 'VC':
 			self.circuit = VariationalClassifier(self.qubits, self.state_prep)
-		elif vqc_dict['ansatz'] == 'TreeTensorNetwork':
+		elif vqc_dict['ansatz'] == 'TTN':
 			self.circuit = TreeTensorNetwork(self.qubits, self.state_prep)
 		else:
 			print(f"Unable to load circuit architecture {vqc_dict['ansatz']}")
-		self.fp_type = vqc_dict['fp_type']
-		self.fp_radius = vqc_dict['fp_radius']
+		self.set_fingerprint(fp_type = vqc_dict['fp_type'], fp_radius = vqc_dict['fp_radius'])
 
 		# create an empty array that is the weights length specified in the dictionary
 		self.W = np.empty((vqc_dict['n_weights']))
