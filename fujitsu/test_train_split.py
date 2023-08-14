@@ -11,7 +11,7 @@ from sklearn.model_selection import ShuffleSplit
 
 ## PARAMETERS
 # fraction of dataset that should be assigned the testing catagory
-test_set_size = 0.8
+test_set_size = 0.9
 # number of times to randomly split testing and training sets
 num_set_split = 5
 # path to save testing and training datasets to
