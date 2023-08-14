@@ -217,9 +217,9 @@ def amp_encoding (x):
 
 	# initialize the numpy array that will contain the amplitude encoded
 	# store the amplitude normilized state vector
-	a = np.array([])
+	sv = np.array([])
 	for i in x:
-		a = np.append(a, [i / norm])
+		sv = np.append(sv, [i / norm])
 
 	# # initialize the qubits using the state vector
 	# state = QuantumState(n)
@@ -382,8 +382,57 @@ class ClassificationCircuit (ABC):
 		# return the array to the user
 		return SV
 
+
+	""" method used by all classification circuits. weights passed to method are used to make
+		predictions / classifications for an array of bit strings passed to the method. """
+	def classifications (self, Wb, state_vectors = None, bit_strings = None):
+
+		# remove bias from list of weights
+		b = Wb[-1]
+		W = Wb[:-1]
+
+		# if state vectors were not passed to the method
+		if state_vectors is None and bit_strings is None:
+			# must pass at least one two method
+			print("Must pass either array of state vectors or bit strings to method.")
+			exit()
+		elif state_vectors is None:
+			# convert the bit strings to state vectors
+			state_vectors = self.batch_state_prep(bit_strings)
+		# otherwise, an array of state vectors were passed to the method
+
+		# initialize a circuit for each layer in the circuit architecture
+		C = [ ]
+		for i in range(self.layers):
+			C.append(self.layer(W, i))
+
+		# for each state vector in the list, make a prediction
+		predictions = []
+		for sv in state_vectors:
+			# initialize the quantum state
+			if self.use_MPI:
+				s = QuantumState(self.qubits, use_multi_cpu = True)
+			else:
+				s = QuantumState(self.qubits)
+
+			# load the state vector into the quantum state
+			load_state_vector(s, sv)
+
+			# apply the circuit operations to the initial quantum state
+			for c in C:
+				c.update_quantum_state(s)
+
+			# once the quantum state has been updated
+			# measure the qubit states and add the prediction to the list
+			predictions.append(self.obs.get_expectation_value(s) + b)
+
+		# return the predictions to the user
+		return predictions
+
+
 	""" methed used by all classification circuits. weights passed to method (W) 
-		are used to make prediction / classification for bit string passed to method (x). """
+		are used to make prediction / classification for a single bit strings or
+		state vector representing the bit strings passed to method. """
 	def classify(self, Wb, state_vector = None, bit_string = None):
 
 		# remove bias from list of weights
@@ -408,8 +457,13 @@ class ClassificationCircuit (ABC):
 				state = basis_encoding_circuit(bit_string)
 		else:
 			# use the state vector to load the initial qubit state
-			state = QuantumState(self.qubits)
-			state.load(state_vector)
+			# initialize the state
+			if self.use_MPI:
+				state = QuantumState(self.qubits, use_multi_cpu = True)
+			else:
+				state = QuantumState(self.qubits)
+			# load the state vector into the quantum state
+			load_state_vector(state, state_vector)
 
 		# apply circuit layers to quantum state
 		for i in range(self.layers):

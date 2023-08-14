@@ -356,19 +356,19 @@ class VQC:
 	def cost_function(self, W):
 
 		# make predictions for all X values
-		Y_pred = []
-		Y_class = []
-		for i in range(len(self.SV)):
+		Y_pred = self.circuit.classifications(W, state_vectors = self.SV)
+		Y_class = self.Y
+		# for i in range(len(self.SV)):
 
-			# state vector
-			sv = self.SV[i]
+		# 	# state vector
+		# 	sv = self.SV[i]
 
-			# make a prediction with the weights passed to the function
-			y = self.circuit.classify(W, state_vector = sv)
+		# 	# make a prediction with the weights passed to the function
+		# 	y = self.circuit.classify(W, state_vector = sv)
 
-			# add the prediction and its known value to the list
-			Y_pred.append(y)
-			Y_class.append(self.Y[i])
+		# 	# add the prediction and its known value to the list
+		# 	Y_pred.append(y)
+		# 	Y_class.append(self.Y[i])
 
 		# calculate the cost and accuracy of the weights
 		norm, acc, ce = error(Y_pred, Y_class)
