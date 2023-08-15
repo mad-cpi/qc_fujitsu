@@ -78,7 +78,7 @@ def optimize(vqc, save_dir = None, title = None, max_opt_steps = None, max_opt_h
 
 	# translate bit strings to state vectors before processing
 	print(f"\nTranslating fingerprints to quantum state vectors ..")
-	vqc.SV = vqc.circuit.batch_state_prep(vqc.X)
+	# vqc.SV = vqc.circuit.batch_state_prep(vqc.X)
 
 	# optimize the weights associated with the circuit
 	W_init = vqc.W
@@ -356,19 +356,24 @@ class VQC:
 	def cost_function(self, W):
 
 		# make predictions for all X values
-		Y_pred = self.circuit.classifications(W, state_vectors = self.SV)
-		Y_class = self.Y
-		# for i in range(len(self.SV)):
+		# Y_pred = self.circuit.classifications(W, state_vectors = self.SV)
+		# Y_class = self.Y
 
-		# 	# state vector
-		# 	sv = self.SV[i]
+		Y_pred = []
+		Y_class = []
+		for i in range(len(self.X)):
 
-		# 	# make a prediction with the weights passed to the function
-		# 	y = self.circuit.classify(W, state_vector = sv)
+			# state vector
+			# sv = self.SV[i]
+			x = self.X[i]
 
-		# 	# add the prediction and its known value to the list
-		# 	Y_pred.append(y)
-		# 	Y_class.append(self.Y[i])
+			# make a prediction with the weights passed to the function
+			# y = self.circuit.classify(W, state_vector = sv)
+			y = self.circuit.classify(W, bit_string = x)
+
+			# add the prediction and its known value to the list
+			Y_pred.append(y)
+			Y_class.append(self.Y[i])
 
 		# calculate the cost and accuracy of the weights
 		norm, acc, ce = error(Y_pred, Y_class)
