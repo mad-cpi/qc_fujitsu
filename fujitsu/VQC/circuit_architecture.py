@@ -8,6 +8,7 @@ from qulacs.gate import RX, RY, RZ, CNOT, H, DenseMatrix, SWAP
 from abc import abstractmethod, ABC
 import matplotlib.pyplot as plt
 import seaborn as sns
+from mpi4py import MPI
 
 ## PARAMETERS ## 
 # maximum number of qubits that can used to initialize a circuit on
@@ -247,7 +248,6 @@ class ClassificationCircuit (ABC):
 		if qubits > max_desktop_qubits:
 
 			# import mpi4py, check rank
-			from mpi4py import MPI
 			comm = MPI.COMM_WORLD
 			rank = (comm.Get_rank() + 1)
 			print("\nInitializing ")
@@ -377,7 +377,8 @@ class ClassificationCircuit (ABC):
 					s = QuantumState(self.qubits)
 				s.set_zero_state() # initialize the zero state
 				c.update_quantum_state(s) # update the quantum state
-				sv = get_state_vector(s) # return the state vector from the parsing function
+				# sv = get_state_vector(s) # return the state vector from the parsing function
+				sv = s.get_vector()
 				SV.append(sv) # add the state vector to the list
 		# return the array to the user
 		return SV
@@ -402,10 +403,11 @@ class ClassificationCircuit (ABC):
 		# otherwise, an array of state vectors were passed to the method
 
 		# initialize a circuit for each layer in the circuit architecture
-		C = [ ]
+		C = []
 		for i in range(self.layers):
 			C.append(self.layer(W, i))
 
+		# exit()
 		# for each state vector in the list, make a prediction
 		predictions = []
 		for sv in state_vectors:
@@ -416,7 +418,8 @@ class ClassificationCircuit (ABC):
 				s = QuantumState(self.qubits)
 
 			# load the state vector into the quantum state
-			load_state_vector(s, sv)
+			# load_state_vector(s, sv)
+			s.load(sv)
 
 			# apply the circuit operations to the initial quantum state
 			for c in C:
@@ -464,6 +467,7 @@ class ClassificationCircuit (ABC):
 				state = QuantumState(self.qubits)
 			# load the state vector into the quantum state
 			load_state_vector(state, state_vector)
+			# state.load(state_vector)
 
 		# apply circuit layers to quantum state
 		for i in range(self.layers):
