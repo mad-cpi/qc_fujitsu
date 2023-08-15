@@ -6,4 +6,11 @@ dependencies:
   - python
   - numpy
   - pandas
+  - seaborn
+  - rdkit
+  - pytorch
+  - scikit-learn
+  - yaml
+  - pyyaml
+  - mpi4py
 prefix: /Users/collabpharma/opt/anaconda3/envs/QC
