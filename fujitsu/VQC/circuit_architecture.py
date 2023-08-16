@@ -233,9 +233,10 @@ def amp_encoding (x):
 
 ## CIRCUIT ARCHITECTURE CLASS METHODS ## 
 class ClassificationCircuit (ABC):
-	def __init__(self, qubits, state_prep_method):
+	def __init__(self, qubits, state_prep_method, stacking_status):
 		self.set_circuit_qubits(qubits)
 		self.state_prep = state_prep_method
+		self.set_circuit_stacking(stacking_status)
 		self.set_layers() # number of layers depends on the circuit architecture
 		self.set_observable()
 		self.set_QFT_status() # initialize QFT operation, default is off
@@ -328,6 +329,13 @@ class ClassificationCircuit (ABC):
 			# assign the qubits to the circuit and proceed
 			self.qubits = qubits
 			self.use_MPI = False
+
+	@abstractmethod 
+	def set_circuit_stacking(self, stacking_status):
+		# until each circuit architecture has the ability
+		# to stack quantum circuits, each circuit architecture
+		# sets the circuit stacking status
+		pass
 
 	## generic circuit architecture circuit methods
 
@@ -535,6 +543,11 @@ class VariationalClassifier(ClassificationCircuit):
 	def set_layers(self):
 		self.layers = 2
 
+	""" method that sets the circuit stacking status. The variational classification circuit
+		has the ability to stack functions. """
+	def set_circuit_stacking (self, stacking_status):
+		self.stacking_status = stacking_status
+
 	""" set observable for VC circuit """
 	def set_observable (self):
 		self.obs = Observable(self.qubits)
@@ -654,6 +667,12 @@ class TreeTensorNetwork(ClassificationCircuit):
 		# assign the layers to the object
 		self.layers = layer
 
+	""" set the stacking status for the circuit. The TTN architecture is not yet
+		able to stack circuit functions. """
+	def set_circuit_stacking (self, stacking_status):
+		print("ERROR :: Unable to stacking quantum circuits with Tree Tensor Network architecture.")
+		self.stacking_status = False
+
 	""" set observable to TTN circuit """
 	def set_observable(self):
 		self.obs = Observable(self.qubits)
@@ -761,6 +780,8 @@ class TreeTensorNetwork(ClassificationCircuit):
 				q = q_new
 
 		return q
+
+
 
 
 

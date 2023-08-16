@@ -165,11 +165,14 @@ def error (predictions, classifications):
 # variational quantum classifier 
 class VQC:
 	""" initialization routine for VQC object. """
-	def __init__(self, qubits, stack = None, state_prep = None, fp_radius = None, fp_type = None):
+	def __init__(self, qubits, state_prep = None, fp_radius = None, fp_type = None):
 
 		# initialize the number of qubits input 
 		# into the classification circuit
 		self.set_VQC_qubits(qubits)
+
+		# initialize the stacking state of the function
+		self.set_function		
 
 		# initialize the number of classical bits, according to 
 		# how the classical information are encoded in the qubits
@@ -335,7 +338,7 @@ class VQC:
 				print("X = {}, Y = {:.2f}".format(self.X[i], self.Y[i]))
 
 	""" method used to initialize the VQC circuit architecture, unitary weights. """
-	def initialize_circuit(self, circuit = None, bit_correlation = False):
+	def initialize_circuit(self, circuit = None, bit_correlation = False, stack = False):
 
 		## TODO :: prevent this method for being called if there is no data associated with the object
 
@@ -346,9 +349,9 @@ class VQC:
 
 		# initialize the anstaz object 
 		if circuit == 'VC':
-			self.circuit = VariationalClassifier(self.qubits, self.state_prep)
+			self.circuit = VariationalClassifier(self.qubits, self.state_prep, stack)
 		elif circuit == 'TTN':
-			self.circuit = TreeTensorNetwork(self.qubits, self.state_prep)
+			self.circuit = TreeTensorNetwork(self.qubits, self.state_prep, stack)
 		else:
 			print(f"ERROR :: {circuit} circuit ansatz not implemented yet.")
 			exit()
