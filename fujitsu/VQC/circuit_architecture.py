@@ -457,7 +457,16 @@ class ClassificationCircuit (ABC):
 				state = amp_encoding(bit_string)
 			else:
 				# default is embed bit string as computational basis
-				state = basis_encoding_circuit(bit_string)
+				c = basis_encoding_circuit(bit_string)
+				# initialize the quantum state
+				if self.use_MPI:
+					state = QuantumState(self.qubits, use_multi_cpu = True)
+				else:
+					state = QuantumState(self.qubits)
+				state.set_zero_state() # initialize the zero state
+				c.update_quantum_state(state) # update the quantum state
+				# sv = get_state_vector(s) # return the state vector from the parsing function
+				# sv = state.get_vector()
 		else:
 			# use the state vector to load the initial qubit state
 			# initialize the state
@@ -466,8 +475,8 @@ class ClassificationCircuit (ABC):
 			else:
 				state = QuantumState(self.qubits)
 			# load the state vector into the quantum state
-			load_state_vector(state, state_vector)
-			# state.load(state_vector)
+			# load_state_vector(state, state_vector)
+			state.load(state_vector)
 
 		# apply circuit layers to quantum state
 		for i in range(self.layers):

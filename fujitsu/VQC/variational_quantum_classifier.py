@@ -60,7 +60,7 @@ class TookTooLong(Warning):
 """ method used to optimize the current weights of a variational circuit according
 	to the dataset sotored within the variational classification circuit
 	object. """
-def optimize(vqc, save_dir = None, title = None, max_opt_steps = None, max_opt_hours = None, minimize_method = 'Powell'):
+def optimize(vqc, save_dir = None, title = None, max_opt_steps = None, max_opt_hours = None, tol = None, minimize_method = 'Powell'):
 
 	# check that data has been loaded into the circiut
 	if vqc.X is None or vqc.Y is None:
@@ -71,10 +71,16 @@ def optimize(vqc, save_dir = None, title = None, max_opt_steps = None, max_opt_h
 	opts_dict = {}
 	vqc.initialize_circuit_optimization(steps = max_opt_steps, hours = max_opt_hours)
 	if vqc.max_opt_steps is not None:
-		if minimize_method != 'TNC':
-			opts_dict['maxiter'] = vqc.max_opt_steps
-		else:
+		if minimize_method == 'TNC':
 			opts_dict['maxfun'] = vqc.max_opt_steps
+		elif minimize_method == 'Powell':
+			opts_dict['maxfev'] = vqc.max_opt_steps
+		else:
+			opts_dict['maxiter'] = vqc.max_opt_steps
+
+	if tol is not None:
+		if tol > 0.:
+			opts_dict['ftol'] = tol
 
 	# translate bit strings to state vectors before processing
 	print(f"\nTranslating fingerprints to quantum state vectors ..")
@@ -159,7 +165,7 @@ def error (predictions, classifications):
 # variational quantum classifier 
 class VQC:
 	""" initialization routine for VQC object. """
-	def __init__(self, qubits, state_prep = None, fp_radius = None, fp_type = None):
+	def __init__(self, qubits, stack = None, state_prep = None, fp_radius = None, fp_type = None):
 
 		# initialize the number of qubits input 
 		# into the classification circuit
@@ -361,6 +367,7 @@ class VQC:
 
 		Y_pred = []
 		Y_class = []
+		# for i in range(len(self.SV)):
 		for i in range(len(self.X)):
 
 			# state vector
