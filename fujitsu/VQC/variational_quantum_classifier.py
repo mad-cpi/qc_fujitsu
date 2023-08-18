@@ -172,7 +172,7 @@ class VQC:
 		self.set_VQC_qubits(qubits)
 
 		# initialize the stacking state of the function
-		self.set_function		
+		# self.set_function		
 
 		# initialize the number of classical bits, according to 
 		# how the classical information are encoded in the qubits
@@ -338,7 +338,7 @@ class VQC:
 				print("X = {}, Y = {:.2f}".format(self.X[i], self.Y[i]))
 
 	""" method used to initialize the VQC circuit architecture, unitary weights. """
-	def initialize_circuit(self, circuit = None, bit_correlation = False, stack = False):
+	def initialize_circuit(self, circuit = None, bit_correlation = False, stack_int = 0):
 
 		## TODO :: prevent this method for being called if there is no data associated with the object
 
@@ -349,9 +349,9 @@ class VQC:
 
 		# initialize the anstaz object 
 		if circuit == 'VC':
-			self.circuit = VariationalClassifier(self.qubits, self.state_prep, stack)
+			self.circuit = VariationalClassifier(self.qubits, self.state_prep, stack_int)
 		elif circuit == 'TTN':
-			self.circuit = TreeTensorNetwork(self.qubits, self.state_prep, stack)
+			self.circuit = TreeTensorNetwork(self.qubits, self.state_prep, stack_int)
 		else:
 			print(f"ERROR :: {circuit} circuit ansatz not implemented yet.")
 			exit()

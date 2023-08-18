@@ -233,10 +233,10 @@ def amp_encoding (x):
 
 ## CIRCUIT ARCHITECTURE CLASS METHODS ## 
 class ClassificationCircuit (ABC):
-	def __init__(self, qubits, state_prep_method, stacking_status):
+	def __init__(self, qubits, state_prep_method, stacking_int):
 		self.set_circuit_qubits(qubits)
 		self.state_prep = state_prep_method
-		self.set_circuit_stacking(stacking_status)
+		self.set_circuit_stacking(stacking_int)
 		self.set_layers() # number of layers depends on the circuit architecture
 		self.set_observable()
 		self.set_QFT_status() # initialize QFT operation, default is off
@@ -331,11 +331,16 @@ class ClassificationCircuit (ABC):
 			self.use_MPI = False
 
 	@abstractmethod 
-	def set_circuit_stacking(self, stacking_status):
+	def set_circuit_stacking (self, stacking_int):
 		# until each circuit architecture has the ability
 		# to stack quantum circuits, each circuit architecture
 		# sets the circuit stacking status
 		pass
+
+	# method that returns the integer associated with the circuit
+	# archietecture object
+	def get_stacking_int (self):
+		return self.stacking_int
 
 	## generic circuit architecture circuit methods
 
@@ -545,8 +550,8 @@ class VariationalClassifier(ClassificationCircuit):
 
 	""" method that sets the circuit stacking status. The variational classification circuit
 		has the ability to stack functions. """
-	def set_circuit_stacking (self, stacking_status):
-		self.stacking_status = stacking_status
+	def set_circuit_stacking (self, stacking_int):
+		self.stacking_int = stacking_int
 
 	""" set observable for VC circuit """
 	def set_observable (self):
@@ -669,9 +674,9 @@ class TreeTensorNetwork(ClassificationCircuit):
 
 	""" set the stacking status for the circuit. The TTN architecture is not yet
 		able to stack circuit functions. """
-	def set_circuit_stacking (self, stacking_status):
+	def set_circuit_stacking (self, stacking_int):
 		print("ERROR :: Unable to stacking quantum circuits with Tree Tensor Network architecture.")
-		self.stacking_status = False
+		self.stacking_int = 0
 
 	""" set observable to TTN circuit """
 	def set_observable(self):

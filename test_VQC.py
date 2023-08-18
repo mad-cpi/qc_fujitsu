@@ -14,7 +14,7 @@ for i in range(5):
 	vqc = VQC(qubits = 16, state_prep = "BasisEmbedding", fp_radius = 6)
 
 	# initialize data, load training data
-	vqc.initialize_circuit(circuit = 'VC', bit_correlation = False, stack = False)
+	vqc.initialize_circuit(circuit = 'VC', bit_correlation = False)
 	vqc.load_data(load_path = train_set, smile_col = 'SMILE', class_col = 'class', verbose = False)
 
 	# train circuit, save circuit weights before and after training
