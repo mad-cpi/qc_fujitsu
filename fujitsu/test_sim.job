@@ -1,0 +1,17 @@
+#!/bin/bash
+
+#SBATCH --job-name=qsim-test
+#SBATCH -p Batch # Specify Batch queue
+#SBATCH -o qsim-out/%j.txt # Output file name
+#SBATCH -t 06:00:00 # Limit on the job execution time
+
+# mount loopback (?) as read only
+mpirun -npernode 1 fuse-ext2 ~/qenv ~/venvs -o ro
+
+# mpirun -npernode 2 job.sh ~/qenv python test_qsim_VQC.py 
+# The -n option is not required when executing with the number of nodes allocated above.
+mpirun -n 1 ~/fujitsu/test_jobsub.sh ~/venvs/qenv python ~/fujitsu/test_qsim_VQC.py 
+# To run on more than the allocated number of nodes, give the -n option; in this example, one node
+
+# unmount loopback
+mpirun -npernode 1 fusermount -u ~/venvs
