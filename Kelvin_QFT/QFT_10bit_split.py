@@ -180,6 +180,7 @@ Result_data.write("Data_number,")
 Result_data.write("Count matched,")
 Result_data.write("Predicted Value,")
 Result_data.write("Actual Value")
+Result_data.write('\n')
 
 for i in range(len(X_pred)):
 	SX = pos_conv(X_pred[i])
@@ -224,7 +225,7 @@ for i in range(len(X_pred)):
 	Result_data.write(',')
 	Result_data.write(str(Predicted_value[i]))
 	Result_data.write(',')
-	Result_data.write(str(Y[i]))
+	Result_data.write(str(Y_act[i]))
 	Result_data.write('\n')
 
 # Checking the prediction accuracy of the model
@@ -232,7 +233,7 @@ count =0
 print(Predicted_value)
 print(Y_act)
 for i in range(len(Y_act)):
-	if Predicted_value[i] == Y[i]:
+	if Predicted_value[i] == Y_act[i]:
 		count +=1
 print("Model accuracy for predicting output is")
 print((len(X_pred)-count)/len(X_pred)*100)	
