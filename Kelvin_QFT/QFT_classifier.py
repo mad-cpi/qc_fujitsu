@@ -58,10 +58,10 @@ class QFT_classifier:
         QFT_out.update_quantum_state(state)
 
         obs = Observable(self.qubits)
-        
-        obs.add_operator(2.,'Z 7')
+
         obs.add_operator(2.,'Z 8')
         obs.add_operator(2.,'Z 9')
+        obs.add_operator(2.,'Z 10')
         # Output of the model
         a = obs.get_expectation_value(state)
 
@@ -127,9 +127,10 @@ class QFT_classifier:
         state.set_zero_state()
 
         obs = Observable(n)
-        obs.add_operator(2.,'Z 7')
+
         obs.add_operator(2.,'Z 8')
         obs.add_operator(2.,'Z 9')
+        obs.add_operator(2.,'Z 10')
 
         Initial_ciruit = self.U_in(data_x)
 
