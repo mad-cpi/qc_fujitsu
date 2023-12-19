@@ -8,7 +8,7 @@ from qulacs.gate import RX, RY, RZ, CNOT, H, DenseMatrix, SWAP
 from abc import abstractmethod, ABC
 import matplotlib.pyplot as plt
 import seaborn as sns
-from mpi4py import MPI
+# from mpi4py import MPI
 
 ## PARAMETERS ## 
 # maximum number of qubits that can used to initialize a circuit on
