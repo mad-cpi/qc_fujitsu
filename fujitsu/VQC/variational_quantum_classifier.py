@@ -280,9 +280,58 @@ class VQC:
 		self.opt_ce = [] # cumulation of cross entropy scores during optimization
 		self.opt_acc = [] # cumulation of accuracy scores during optimization
 
+	""" method used to load binary vectors and activity classifications
+		from a csv file. """
+	def load_vector_data (self, load_path, vec_col, class_col, verbose = False):
+
+		# check that the path to the specified file exists
+		if not os.path.exists(load_path):
+			print(f" PATH ({load_path}) does not exist. Cannot load dataset.")
+			exit()
+		# load the csv
+		df = pd.read_csv(load_path)
+
+		# inform user, loaded csv
+		if verbose:
+			print(f"\nLoading VECTORS from ({load_path}) ..")
+		# check that headers are in the dataframe, load data
+		if not vec_col in df.columns:
+			print(f" VECTOR COL ({vec_col}) not in FILE ({load_path}). Unable to load binary vector.")
+			exit()
+
+		# load dataset, inform user
+		bin_vec = df[vec_col].tolist()
+		if verbose:
+			print(f"Loading VECTOR as {self.classical_bits}-bit vector ..")
+
+		self.X = np.zeros((len(bin_vec), self.classical_bits), dtype=int)
+		for i in range(len(bin_vec)):
+			print(type(bin_vec[i]))
+			temp_vec = bin_vec[i].replace('[','').replace(']','').replace(' ','').split(',')
+			for j in range(self.qubits):
+				if temp_vec[j] == "1.0":
+					# replace 0 with 1
+					self.X[i,j] = 1
+
+		# load classification data
+		# check that headers are in the dataframe, load data
+		if not class_col in df.columns:
+			print(f" CLASS COL ({class_col}) not in FILE ({load_path}). Unable to load binary vector.")
+			exit()
+		self.Y = np.array(df[class_col])
+		self.Y = self.Y * 2 - np.ones(len(self.Y)) # shift label form [0, 1] to [-1, 1]
+
+		# if the user wants to write the data set to the
+		if verbose:
+			print(f"\nLoading DATA ({load_path}) .. \n")
+			for i in range(len(self.Y)):
+				print("{} :: X = {}, Y = {:.2f}".format(i, self.X[i], self.Y[i]))
+
+
+
 	""" method used to load smile strings and activity classifications
 		from csv file. """
-	def load_data (self, load_path, smile_col, class_col, BAE = False, verbose = False):
+	def load_smiles_data (self, load_path, smile_col, class_col, verbose = False):
 
 		# check that the path to the specified file exists
 		if not os.path.exists(load_path):
@@ -333,7 +382,7 @@ class VQC:
 
 		# if the user wants to write the data set to the
 		if verbose:
-			print(f"\nLoading DATA ({load_path}) .. \n")
+			print(f"\nLoading CLASS ({load_path}) .. \n")
 			for i in range(len(self.Y)):
 				print("X = {}, Y = {:.2f}".format(self.X[i], self.Y[i]))
 

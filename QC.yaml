@@ -1,16 +1,12 @@
 name: QC
 channels:
-  - conda-forge
   - defaults
 dependencies:
-  - python
-  - numpy
   - pandas
+  - numpy
+  - python
   - seaborn
-  - rdkit
-  - pytorch
-  - scikit-learn
-  - yaml
   - pyyaml
-  - mpi4py
-prefix: /Users/collabpharma/opt/anaconda3/envs/QC
+  - rdkit
+  - scipy
+  - scikit-learn

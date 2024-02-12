@@ -7,7 +7,7 @@ __pycache__/
 *.so
 
 # local stuff
-.DS_Store
+*/.DS_Store
 *qenv/
 # Distribution / packaging
 .Python

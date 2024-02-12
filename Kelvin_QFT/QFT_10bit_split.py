@@ -20,20 +20,42 @@ from rdkit.Chem import AllChem, rdFingerprintGenerator
 import textwrap
 from QFT_classifier import QFT_classifier
 import random
+import time
 
+
+# 
+start = time.time()
 # parameters to change 
 
 #  training data points usually starts from the 1st point on the dataset
-training_data = 450
+training_data = 89
 # Add data points correponding to the position in dataset to check validity of the model
 
 check_start = 1020
-check_stop = 2822
+check_stop = 3822
+
+group_div = 20
+
+qubits = 1023
+Qubits = 10
+#class_list = [0, 500, 1000, 1500, 2000,  2500, 3000, 4095]
+class_list = []
+
+# dividing class list according to the given divisions
+
+div = round(qubits/group_div)
+
+for i in range(group_div):
+	class_list.append(div*i)
+
+class_list.append(qubits)
+
+print(class_list)
 
 #######################
 ## Reading file and converting to desired fingerprint 
 ###
-path = "malaria_IC50_curated.csv"
+path = "malaria_IC50_curated_ordered.csv"
 smile_col = 'SMILES'
 class_col = 'single-class-label'
 # default fingerprint type used for encoding 
@@ -44,7 +66,7 @@ fp_type = "rdkfp"
 # smile strings to bit vectors
 fp_radius = 3
 
-qubits = 2047
+
 
 # check that the path to the specified file exists
 if not os.path.exists(path):
@@ -91,8 +113,6 @@ def pos_conv(X):
 
 # Converting bits to positional vectors
 
-Qubits = 11
-
 qft_classifier = QFT_classifier(Qubits)
 
 # Debug file for evaluating the training and theta
@@ -112,10 +132,16 @@ X_train = []
 Y_train = []
 expectation = []
 
-class_list = [0,300,600,900,1200,1500,1800,2047]
-X_split = [[],[],[],[],[],[],[]]
-Y_split = [[],[],[],[],[],[],[]]
+# Initializing the dataset baed on the number of arrays
+X_split = []
+Y_split = []
+Expectation_arr = []
+for i in range(len(class_list)-1):
+	X_split.append([])
+	Y_split.append([])
+	Expectation_arr.append([])
 
+print(len(X_split))
 for j in range(len_dataset):
 	SX = pos_conv(X[j])
 	for kk in range(len(SX)):
@@ -138,12 +164,20 @@ print("Training model running ...")
 # Running the training model
 theta_opt =[]
 expect_opt = []
+cnt_valid = 0
 for jj in range(len(class_list)-1):
-	theta, expect = qft_classifier.classifier_train(X_split[jj],Y_split[jj])
-	theta_opt.append(theta)
-	expect_opt.append(expect)
+	X_tr = X_split[jj]
+	if X_tr != []:
+		theta, expect = qft_classifier.classifier_train(X_split[jj],Y_split[jj])
+		theta_opt.append(theta)
+		expect_opt.append(expect)
+		cnt_valid +=1
 
 print("Training done")
+print(cnt_valid)
+
+end = time.time()
+print(end-start)	
 
 # Printing optimized theta values	
 print("Optimized Theta =",theta)
@@ -174,7 +208,7 @@ print("From values",check_start, "to values", check_stop)
 
 Predicted_value = np.zeros(len(X_pred))
 Predicted_value_tmp = np.zeros(len(class_list))
-Expectation_arr = [[],[],[],[],[],[],[]]
+
 
 Result_data.write("Data_number,")
 Result_data.write("Count matched,")
@@ -218,7 +252,7 @@ for i in range(len(X_pred)):
 		#print("mean",mean_exp)
 		#print("expect",expect_opt[kl])
 		#print(cnt-positive)
-	if positive >= 3:
+	if positive >= cnt_valid/2:
 			Predicted_value[i] =1
 
 	Result_data.write(str(positive))
@@ -239,8 +273,6 @@ print("Model accuracy for predicting output is")
 print((len(X_pred)-count)/len(X_pred)*100)	
 
 
-
-	
 
 
 
